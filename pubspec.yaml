@@ -1,0 +1,26 @@
+name: my_desktop_app
+description: A new Flutter project.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite_common_ffi: ^2.3.2
+  path: ^1.9.0
+  image_picker: ^1.0.4
+  # Nécessaire pour image_picker sur Windows/Linux
+  flutter_plugin_android_lifecycle: ^2.0.17
+  google_fonts: ^6.2.1
+  provider: ^6.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
