@@ -1,9 +1,22 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// ignore: unused_import
 import '../models/produit.dart';
+import '../models/category.dart';
+import '../models/sub_category.dart';
 import '../viewmodels/produit_viewmodel.dart';
+import '../viewmodels/category_viewmodel.dart';
+
+extension IterableExtension<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T element) test) {
+    for (final element in this) {
+      if (test(element)) {
+        return element;
+      }
+    }
+    return null;
+  }
+}
 
 class ProduitListPage extends StatefulWidget {
   const ProduitListPage({super.key});
@@ -14,34 +27,48 @@ class ProduitListPage extends StatefulWidget {
 
 class _ProduitListPageState extends State<ProduitListPage> {
   final TextEditingController _searchController = TextEditingController();
-  // La liste filtrée n'est plus gérée par setState ici, mais par le Consumer
-  // et une variable temporaire dans la fonction de build.
+  Category? _selectedFilterCategory;
+  SubCategory? _selectedFilterSubCategory;
+  List<SubCategory> _availableFilterSubCategories = [];
 
   @override
   void initState() {
     super.initState();
-    // Nous appelons fetchProduits une fois au démarrage
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProduitViewModel>(context, listen: false).fetchProduits();
+      Provider.of<CategoryViewModel>(context, listen: false).fetchCategories();
+      Provider.of<CategoryViewModel>(context, listen: false)
+          .fetchSubCategories();
     });
-
-    // Écoutez les changements dans le champ de recherche pour filtrer
-    _searchController.addListener(() {
-      // Nous déclenchons une reconstruction ici via setState (qui est sûr dans le listener)
-      // pour que le Consumer utilise la nouvelle chaîne de recherche.
-      // En réalité, le Consumer écoutera les changements du ViewModel si on met la logique de filtre directement
-      // dans son builder, mais pour que l'interface de recherche mette à jour la liste sans toucher
-      // directement le viewModel, on peut utiliser un setState local.
-      // Cependant, le filtrage sera fait au sein du builder du Consumer pour éviter le setState pendant le build.
-      setState(
-          () {}); // Un simple setState pour déclencher le Consumer à reconstruire avec la nouvelle query.
-    });
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.dispose(); // Très important de disposer du contrôleur
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {});
+  }
+
+  void _updateAvailableFilterSubCategories(Category? category) {
+    final categoryViewModel =
+        Provider.of<CategoryViewModel>(context, listen: false);
+
+    if (category == null) {
+      _availableFilterSubCategories = [];
+    } else {
+      _availableFilterSubCategories = categoryViewModel.subCategories
+          .where((subCat) => subCat.categoryId == category.id)
+          .toList();
+    }
+    if (_selectedFilterSubCategory != null &&
+        !_availableFilterSubCategories.contains(_selectedFilterSubCategory)) {
+      _selectedFilterSubCategory = null;
+    }
+    setState(() {});
   }
 
   @override
@@ -54,42 +81,122 @@ class _ProduitListPageState extends State<ProduitListPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(12.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Rechercher un produit...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: 'Rechercher un produit...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.grey[50],
+                  ),
                 ),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          // Pas besoin de filterProduits ici, le listener et le Consumer gèrent ça.
+                const SizedBox(height: 10),
+                Consumer<CategoryViewModel>(
+                  builder: (context, categoryViewModel, child) {
+                    return DropdownButtonFormField<Category>(
+                      value: _selectedFilterCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Filtrer par Catégorie',
+                      ),
+                      items: [
+                        const DropdownMenuItem<Category>(
+                          value: null,
+                          child: Text('Toutes les catégories'),
+                        ),
+                        ...categoryViewModel.categories.map((Category cat) {
+                          return DropdownMenuItem<Category>(
+                            value: cat,
+                            child: Text(cat.nom),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (Category? newValue) {
+                        // Corrected type
+                        setState(() {
+                          _selectedFilterCategory = newValue;
+                          _updateAvailableFilterSubCategories(newValue);
+                          _selectedFilterSubCategory = null;
+                        });
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<SubCategory>(
+                  value: _selectedFilterSubCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Filtrer par Sous-Catégorie',
+                  ),
+                  items: [
+                    const DropdownMenuItem<SubCategory>(
+                      value: null,
+                      child: Text('Toutes les sous-catégories'),
+                    ),
+                    ..._availableFilterSubCategories.map((SubCategory subCat) {
+                      return DropdownMenuItem<SubCategory>(
+                        value: subCat,
+                        child: Text(subCat.nom),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (_selectedFilterCategory == null &&
+                          _availableFilterSubCategories.isEmpty)
+                      ? null
+                      : (SubCategory? newValue) {
+                          // Corrected type
+                          setState(() {
+                            _selectedFilterSubCategory = newValue;
+                          });
                         },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey[50],
-              ),
+                ),
+              ],
             ),
           ),
           Expanded(
-            // Le Consumer écoute les changements dans ProduitViewModel
             child: Consumer<ProduitViewModel>(
-              builder: (context, viewModel, child) {
-                // Obtenez tous les produits du ViewModel
-                final allProduits = viewModel.produits;
-                // Filtrez les produits basés sur la requête de recherche actuelle
-                final filteredProduits = allProduits
+              builder: (context, produitViewModel, child) {
+                final categoryViewModel =
+                    Provider.of<CategoryViewModel>(context);
+
+                List<Produit> currentProducts = produitViewModel.produits
                     .where((p) => p.nom
                         .toLowerCase()
                         .contains(_searchController.text.toLowerCase()))
                     .toList();
 
-                if (filteredProduits.isEmpty) {
+                if (_selectedFilterCategory != null) {
+                  final subCategoriesInSelectedCategory = categoryViewModel
+                      .subCategories
+                      .where((subCat) =>
+                          subCat.categoryId == _selectedFilterCategory!.id)
+                      .map((subCat) => subCat.id)
+                      .toSet();
+
+                  currentProducts = currentProducts
+                      .where((p) => subCategoriesInSelectedCategory
+                          .contains(p.subCategoryId))
+                      .toList();
+                }
+
+                if (_selectedFilterSubCategory != null) {
+                  currentProducts = currentProducts
+                      .where((p) =>
+                          p.subCategoryId == _selectedFilterSubCategory!.id)
+                      .toList();
+                }
+
+                if (currentProducts.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -97,31 +204,57 @@ class _ProduitListPageState extends State<ProduitListPage> {
                         const Icon(Icons.search_off,
                             size: 80, color: Colors.grey),
                         const SizedBox(height: 10),
-                        Text(
-                          _searchController.text.isEmpty
-                              ? 'Aucun produit disponible.'
-                              : 'Aucun produit trouvé pour "${_searchController.text}"',
-                          style:
-                              const TextStyle(fontSize: 18, color: Colors.grey),
+                        const Text(
+                          'Aucun produit trouvé avec les filtres actuels.',
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
                           textAlign: TextAlign.center,
                         ),
-                        if (_searchController.text.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
-                              _searchController.clear();
-                              // setState est appelé par le listener, donc la liste se rafraîchit.
-                            },
-                            child: const Text('Afficher tous les produits'),
-                          ),
+                        TextButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _selectedFilterCategory = null;
+                              _selectedFilterSubCategory = null;
+                              _availableFilterSubCategories = [];
+                              Provider.of<ProduitViewModel>(context,
+                                      listen: false)
+                                  .fetchProduits();
+                              Provider.of<CategoryViewModel>(context,
+                                      listen: false)
+                                  .fetchCategories();
+                              Provider.of<CategoryViewModel>(context,
+                                      listen: false)
+                                  .fetchSubCategories();
+                            });
+                          },
+                          child: const Text('Réinitialiser les filtres'),
+                        ),
                       ],
                     ),
                   );
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.all(8.0),
-                  itemCount: filteredProduits.length,
+                  itemCount: currentProducts.length,
                   itemBuilder: (_, index) {
-                    final p = filteredProduits[index];
+                    final p = currentProducts[index];
+
+                    final subCategory =
+                        categoryViewModel.subCategories.firstWhereOrNull(
+                      (subCat) => subCat.id == p.subCategoryId,
+                    );
+
+                    // ignore: unnecessary_null_comparison
+                    final parentCategory =
+                        (subCategory != null && subCategory.categoryId != null)
+                            ? categoryViewModel.categories.firstWhereOrNull(
+                                (cat) => cat.id == subCategory.categoryId,
+                              )
+                            : null;
+
+                    final categoryNom = parentCategory?.nom ?? 'N/A';
+                    final subCategoryNom = subCategory?.nom ?? 'N/A';
+
                     return Card(
                       elevation: 3,
                       margin: const EdgeInsets.symmetric(
@@ -160,10 +293,18 @@ class _ProduitListPageState extends State<ProduitListPage> {
                           p.nom,
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text('${p.prix.toStringAsFixed(2)} DT'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${p.prix.toStringAsFixed(2)} DT'),
+                            Text(
+                              '$categoryNom > $subCategoryNom',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
                         onTap: () {
-                          // Optionnel: Naviguer vers la page de gestion/modification
-                          // ou afficher une SnackBar pour les détails
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Détails de ${p.nom}')),
                           );

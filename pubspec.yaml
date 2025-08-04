@@ -16,6 +16,7 @@ dependencies:
   flutter_plugin_android_lifecycle: ^2.0.17
   google_fonts: ^6.2.1
   provider: ^6.1.2 # Mise à jour vers la version utilisée dans l'exemple
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
