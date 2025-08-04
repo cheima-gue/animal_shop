@@ -9,13 +9,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqflite_common_ffi: ^2.3.2
+  sqflite_common_ffi: ^2.3.3+1 # Mise à jour vers la version utilisée dans l'exemple
   path: ^1.9.0
-  image_picker: ^1.0.4
-  # Nécessaire pour image_picker sur Windows/Linux
+  image_picker: ^1.1.2 # Mise à jour vers la version utilisée dans l'exemple
+  # Nécessaire pour image_picker sur Windows/Linux (gardez-le)
   flutter_plugin_android_lifecycle: ^2.0.17
   google_fonts: ^6.2.1
-  provider: ^6.1.5
+  provider: ^6.1.2 # Mise à jour vers la version utilisée dans l'exemple
 
 dev_dependencies:
   flutter_test:
@@ -24,3 +24,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Pour ajouter des ressources (images, polices, etc.) à votre application, ajoutez une section assets ici.
+  assets:
+    - assets/pet_shop_icon.png # <-- N'oubliez pas de mettre votre image ici et de nommer le fichier exactement comme ça.
+    # Vous pouvez aussi décommenter la ligne ci-dessous pour inclure toutes les images du dossier 'assets'
+    # - assets/
