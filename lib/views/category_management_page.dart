@@ -87,8 +87,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                   );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Catégorie ajoutée !'),
+                      const SnackBar(
+                        content: Text('Catégorie ajoutée !'),
                         backgroundColor: Colors.green, // ✅ Correction ici
                       ),
                     );
@@ -99,8 +99,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                   );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Catégorie modifiée !'),
+                      const SnackBar(
+                        content: Text('Catégorie modifiée !'),
                         backgroundColor: Colors.blue, // ✅ Correction ici
                       ),
                     );
@@ -199,8 +199,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Sous-catégorie ajoutée !'),
+                          const SnackBar(
+                            content: Text('Sous-catégorie ajoutée !'),
                             backgroundColor: Colors.green, // ✅ Déplacé ici
                           ),
                         );
@@ -214,8 +214,8 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
                       );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Sous-catégorie modifiée !'),
+                          const SnackBar(
+                            content: Text('Sous-catégorie modifiée !'),
                             backgroundColor: Colors.blue, // ✅ Déplacé ici
                           ),
                         );

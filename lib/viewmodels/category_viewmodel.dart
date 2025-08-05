@@ -1,98 +1,69 @@
 import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
+import '../services/database_helper.dart'; // Importez le DatabaseHelper
 
 class CategoryViewModel extends ChangeNotifier {
-  // In-memory lists for categories and sub-categories
-  final List<Category> _categories = [];
-  final List<SubCategory> _subCategories = [];
+  final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  int _nextCategoryId = 1;
-  int _nextSubCategoryId = 1;
+  List<Category> _categories = [];
+  List<SubCategory> _subCategories = [];
 
   List<Category> get categories => _categories;
   List<SubCategory> get subCategories => _subCategories;
 
-  // Constructor: Initialize with some dummy data
   CategoryViewModel() {
-    // Add dummy categories
-    _categories.addAll([
-      Category(id: _nextCategoryId++, nom: 'Animaux Domestiques'), // ID 1
-      Category(id: _nextCategoryId++, nom: 'Alimentation'), // ID 2
-      Category(id: _nextCategoryId++, nom: 'Électronique'), // ID 3
-    ]);
-
-    // Add dummy sub-categories (ensure categoryId matches existing category IDs)
-    _subCategories.addAll([
-      SubCategory(id: _nextSubCategoryId++, nom: 'Chiens', categoryId: 1),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Chats', categoryId: 1),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Oiseaux', categoryId: 1),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Poissons', categoryId: 1),
-      SubCategory(
-          id: _nextSubCategoryId++, nom: 'Fruits & Légumes', categoryId: 2),
-      SubCategory(
-          id: _nextSubCategoryId++, nom: 'Produits Laitiers', categoryId: 2),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Viandes', categoryId: 2),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Smartphones', categoryId: 3),
-      SubCategory(id: _nextSubCategoryId++, nom: 'Ordinateurs', categoryId: 3),
-      SubCategory(
-          id: _nextSubCategoryId++, nom: 'Accessoires Audio', categoryId: 3),
-    ]);
-    notifyListeners();
+    fetchData();
   }
 
-  // Fetches categories (simulated)
+  // Méthode pour récupérer toutes les données au démarrage
+  Future<void> fetchData() async {
+    await fetchCategories();
+    await fetchSubCategories();
+  }
+
+  // Récupère les catégories depuis la base de données
   Future<void> fetchCategories() async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    _categories = await _dbHelper.getCategories();
     notifyListeners();
   }
 
-  // Fetches sub-categories (simulated)
+  // Récupère les sous-catégories depuis la base de données
   Future<void> fetchSubCategories() async {
-    await Future.delayed(const Duration(milliseconds: 100));
+    _subCategories = await _dbHelper.getSubCategories();
     notifyListeners();
   }
 
-  // --- Category CRUD operations (optional for this project, but good to have) ---
+  // --- Opérations CRUD pour les catégories ---
   Future<void> addCategory(Category category) async {
-    category.id = _nextCategoryId++;
-    _categories.add(category);
-    notifyListeners();
+    await _dbHelper.insertCategory(category);
+    await fetchCategories(); // Met à jour la liste depuis la DB
   }
 
   Future<void> updateCategory(Category updatedCategory) async {
-    final index = _categories.indexWhere((cat) => cat.id == updatedCategory.id);
-    if (index != -1) {
-      _categories[index] = updatedCategory;
-      notifyListeners();
-    }
+    await _dbHelper.updateCategory(updatedCategory);
+    await fetchCategories(); // Met à jour la liste depuis la DB
   }
 
   Future<void> deleteCategory(int id) async {
-    _categories.removeWhere((cat) => cat.id == id);
-    // Also remove associated sub-categories
-    _subCategories.removeWhere((subCat) => subCat.categoryId == id);
-    notifyListeners();
+    await _dbHelper.deleteCategory(id);
+    await fetchCategories(); // Met à jour la liste des catégories
+    await fetchSubCategories(); // Met à jour les sous-catégories (car elles sont supprimées en cascade)
   }
 
-  // --- SubCategory CRUD operations (optional) ---
+  // --- Opérations CRUD pour les sous-catégories ---
   Future<void> addSubCategory(SubCategory subCategory) async {
-    subCategory.id = _nextSubCategoryId++;
-    _subCategories.add(subCategory);
-    notifyListeners();
+    await _dbHelper.insertSubCategory(subCategory);
+    await fetchSubCategories(); // Met à jour la liste depuis la DB
   }
 
   Future<void> updateSubCategory(SubCategory updatedSubCategory) async {
-    final index = _subCategories
-        .indexWhere((subCat) => subCat.id == updatedSubCategory.id);
-    if (index != -1) {
-      _subCategories[index] = updatedSubCategory;
-      notifyListeners();
-    }
+    await _dbHelper.updateSubCategory(updatedSubCategory);
+    await fetchSubCategories(); // Met à jour la liste depuis la DB
   }
 
   Future<void> deleteSubCategory(int id) async {
-    _subCategories.removeWhere((subCat) => subCat.id == id);
-    notifyListeners();
+    await _dbHelper.deleteSubCategory(id);
+    await fetchSubCategories(); // Met à jour la liste depuis la DB
   }
 }

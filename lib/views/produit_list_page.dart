@@ -119,7 +119,7 @@ class _ProduitListPageState extends State<ProduitListPage> {
                             value: cat,
                             child: Text(cat.nom),
                           );
-                        }).toList(),
+                        }),
                       ],
                       onChanged: (Category? newValue) {
                         // Corrected type
@@ -148,7 +148,7 @@ class _ProduitListPageState extends State<ProduitListPage> {
                         value: subCat,
                         child: Text(subCat.nom),
                       );
-                    }).toList(),
+                    }),
                   ],
                   onChanged: (_selectedFilterCategory == null &&
                           _availableFilterSubCategories.isEmpty)
@@ -245,12 +245,11 @@ class _ProduitListPageState extends State<ProduitListPage> {
                     );
 
                     // ignore: unnecessary_null_comparison
-                    final parentCategory =
-                        (subCategory != null && subCategory.categoryId != null)
-                            ? categoryViewModel.categories.firstWhereOrNull(
-                                (cat) => cat.id == subCategory.categoryId,
-                              )
-                            : null;
+                    final parentCategory = (subCategory != null)
+                        ? categoryViewModel.categories.firstWhereOrNull(
+                            (cat) => cat.id == subCategory.categoryId,
+                          )
+                        : null;
 
                     final categoryNom = parentCategory?.nom ?? 'N/A';
                     final subCategoryNom = subCategory?.nom ?? 'N/A';

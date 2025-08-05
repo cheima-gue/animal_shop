@@ -295,8 +295,8 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
                       await produitViewModel.addProduit(produitData);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Produit ajouté !'),
+                          const SnackBar(
+                            content: Text('Produit ajouté !'),
                             backgroundColor: Colors.green, // ✅ Correction ici
                           ),
                         );
@@ -305,8 +305,8 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
                       await produitViewModel.updateProduit(produitData);
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Produit modifié !'),
+                          const SnackBar(
+                            content: Text('Produit modifié !'),
                             backgroundColor: Colors.blue, // ✅ Correction ici
                           ),
                         );
@@ -404,12 +404,11 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
               );
 
               // ignore: unnecessary_null_comparison
-              final parentCategory =
-                  (subCategory != null && subCategory.categoryId != null)
-                      ? categoryViewModel.categories.firstWhereOrNull(
-                          (cat) => cat.id == subCategory.categoryId,
-                        )
-                      : null;
+              final parentCategory = (subCategory != null)
+                  ? categoryViewModel.categories.firstWhereOrNull(
+                      (cat) => cat.id == subCategory.categoryId,
+                    )
+                  : null;
 
               final categoryNom = parentCategory?.nom ?? 'N/A';
               final subCategoryNom = subCategory?.nom ?? 'N/A';
