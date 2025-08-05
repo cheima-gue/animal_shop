@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../views/produit_home_page.dart';
 import '../views/produit_list_page.dart';
-import '../views/category_management_page.dart'; // Import the new page
+import '../views/category_management_page.dart';
+import '../views/order_page.dart'; // NOUVEAU : Importez la page de commandes
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -43,9 +44,10 @@ class _HomePageState extends State<HomePage> {
         controller: _pageController,
         onPageChanged: _onPageChanged,
         children: const [
-          ProduitHomePage(), // Page 1: Manage Products (Add/Edit/Delete)
-          ProduitListPage(), // Page 2: List and Search Products
-          CategoryManagementPage(), // Page 3: Manage Categories and Sub-Categories
+          ProduitHomePage(), // Page 1: Gérer les produits
+          ProduitListPage(), // Page 2: Lister et rechercher les produits
+          CategoryManagementPage(), // Page 3: Gérer les catégories et sous-catégories
+          OrderPage(), // NOUVEAU : Page 4: Passer une commande
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -53,6 +55,7 @@ class _HomePageState extends State<HomePage> {
         onTap: _onItemTapped,
         selectedItemColor: Colors.teal,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed, // Permet plus de 3 onglets
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
@@ -65,6 +68,11 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(
             icon: Icon(Icons.category),
             label: 'Catégories',
+          ),
+          BottomNavigationBarItem(
+            // NOUVEAU : Onglet pour la page de commandes
+            icon: Icon(Icons.shopping_cart),
+            label: 'Commandes',
           ),
         ],
       ),

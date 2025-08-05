@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../views/home_page.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
+import '../viewmodels/cart_viewmodel.dart'; // NOUVEAU : Importez le CartViewModel
 import '../services/database_helper.dart';
 
 Future<void> main() async {
@@ -16,13 +19,7 @@ Future<void> main() async {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
 
-  // L'initialisation de la base de données est maintenant la seule chose nécessaire.
-  // La logique d'initialisation des données se fait à l'intérieur de cette méthode,
-  // et uniquement la première fois que la base de données est créée.
   await DatabaseHelper().initDatabase();
-
-  // Cette ligne est commentée car elle n'est plus nécessaire.
-  // await DatabaseHelper().populateInitialData();
 
   runApp(const MyApp());
 }
@@ -36,6 +33,9 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ProduitViewModel()),
         ChangeNotifierProvider(create: (_) => CategoryViewModel()),
+        ChangeNotifierProvider(
+            create: (_) =>
+                CartViewModel()), // NOUVEAU : Ajoutez le CartViewModel
       ],
       child: MaterialApp(
         title: 'Gestion des Produits Desktop',
@@ -50,11 +50,8 @@ class MyApp extends StatelessWidget {
             elevation: 2,
           ),
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            // Use primary and onPrimary for FloatingActionButtonThemeData
-            backgroundColor: Colors
-                .teal, // This one is still 'backgroundColor' for FloatingActionButtonThemeData
-            foregroundColor: Colors
-                .white, // This one is still 'foregroundColor' for FloatingActionButtonThemeData
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
           ),
           inputDecorationTheme: InputDecorationTheme(
             border: OutlineInputBorder(
