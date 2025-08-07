@@ -1,3 +1,5 @@
+// lib/services/database_helper.dart
+
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import '../models/produit.dart';
@@ -29,7 +31,7 @@ class DatabaseHelper {
     //await deleteDatabase(path);
 
     // DÉCOMMENTEZ CETTE LIGNE UNE FOIS SEULEMENT pour recréer la DB
-    // avec le nouveau champ 'codeBarre'.
+    // avec le nouveau champ 'codeBarre' UNIQUE et NON-NULL.
     // Après avoir lancé l'application, commentez à nouveau cette ligne.
     // await deleteDatabase(path);
 
@@ -59,7 +61,7 @@ class DatabaseHelper {
                 nom TEXT NOT NULL,
                 prix REAL NOT NULL,
                 image TEXT,
-                codeBarre TEXT,
+                codeBarre TEXT UNIQUE NOT NULL,  
                 subCategoryId INTEGER NOT NULL,
                 FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
               )
@@ -74,8 +76,15 @@ class DatabaseHelper {
   // ---------------- PRODUITS ----------------
   Future<int> insertProduit(Produit produit) async {
     final db = await database;
-    return await db.insert('produits', produit.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    try {
+      return await db.insert('produits', produit.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.abort);
+    } catch (e) {
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        throw Exception('Un produit avec ce code-barres existe déjà.');
+      }
+      rethrow;
+    }
   }
 
   Future<List<Produit>> getProduits() async {
@@ -86,8 +95,15 @@ class DatabaseHelper {
 
   Future<int> updateProduit(Produit produit) async {
     final db = await database;
-    return await db.update('produits', produit.toMap(),
-        where: 'id = ?', whereArgs: [produit.id]);
+    try {
+      return await db.update('produits', produit.toMap(),
+          where: 'id = ?', whereArgs: [produit.id]);
+    } catch (e) {
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        throw Exception('Un autre produit a déjà ce code-barres.');
+      }
+      rethrow;
+    }
   }
 
   Future<int> deleteProduit(int id) async {

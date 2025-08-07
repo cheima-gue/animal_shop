@@ -1,11 +1,9 @@
-// lib/models/produit.dart
-
 class Produit {
   int? id;
   String nom;
   double prix;
   String? image;
-  String? codeBarre; // NOUVEAU : Ajout du code-barres
+  String codeBarre; // Rendu obligatoire
   int subCategoryId;
 
   Produit({
@@ -13,7 +11,7 @@ class Produit {
     required this.nom,
     required this.prix,
     this.image,
-    this.codeBarre, // NOUVEAU
+    required this.codeBarre,
     required this.subCategoryId,
   });
 
@@ -23,19 +21,19 @@ class Produit {
       'nom': nom,
       'prix': prix,
       'image': image,
-      'codeBarre': codeBarre, // NOUVEAU
+      'codeBarre': codeBarre,
       'subCategoryId': subCategoryId,
     };
   }
 
   factory Produit.fromMap(Map<String, dynamic> map) {
     return Produit(
-      id: map['id'],
-      nom: map['nom'],
-      prix: map['prix'],
-      image: map['image'],
-      codeBarre: map['codeBarre'], // NOUVEAU
-      subCategoryId: map['subCategoryId'],
+      id: map['id'] as int?,
+      nom: map['nom'] as String,
+      prix: map['prix'] as double,
+      image: map['image'] as String?,
+      codeBarre: map['codeBarre'] as String,
+      subCategoryId: map['subCategoryId'] as int,
     );
   }
 }
