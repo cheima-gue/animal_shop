@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/produit.dart';
+import '../models/category.dart';
 import '../models/sub_category.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
@@ -22,6 +23,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
   final _nomController = TextEditingController();
   final _prixController = TextEditingController();
   final _codeBarreController = TextEditingController();
+  Category? _selectedCategory;
   SubCategory? _selectedSubCategory;
   String? _imagePath;
   Produit? _editingProduit;
@@ -35,6 +37,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
   Future<void> _fetchData() async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProduitViewModel>(context, listen: false).fetchProduits();
+      Provider.of<CategoryViewModel>(context, listen: false).fetchCategories();
       Provider.of<CategoryViewModel>(context, listen: false)
           .fetchSubCategories();
     });
@@ -54,11 +57,21 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _nomController.text = produit.nom;
       _prixController.text = produit.prix.toString();
       _codeBarreController.text = produit.codeBarre;
-      _selectedSubCategory = context
-          .read<CategoryViewModel>()
-          .subCategories
-          .firstWhere((sub) => sub.id == produit.subCategoryId);
       _imagePath = produit.image;
+
+      final categoryViewModel =
+          Provider.of<CategoryViewModel>(context, listen: false);
+      final subCategory = categoryViewModel.subCategories.firstWhere(
+        (sub) => sub.id == produit.subCategoryId,
+        orElse: () => SubCategory(nom: '', categoryId: -1),
+      );
+      _selectedSubCategory = subCategory.id != -1 ? subCategory : null;
+      _selectedCategory = _selectedSubCategory != null
+          ? categoryViewModel.categories.firstWhere(
+              (cat) => cat.id == _selectedSubCategory!.categoryId,
+              orElse: () => Category(nom: ''),
+            )
+          : null;
     });
   }
 
@@ -68,6 +81,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _nomController.clear();
       _prixController.clear();
       _codeBarreController.clear();
+      _selectedCategory = null;
       _selectedSubCategory = null;
       _imagePath = null;
       _editingProduit = null;
@@ -183,7 +197,8 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
+      child: SingleChildScrollView(
+        // <--- C'est ici que l'ajout du défilement se fait
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -237,27 +252,60 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
               const SizedBox(height: 16),
               Consumer<CategoryViewModel>(
                 builder: (context, categoryViewModel, child) {
-                  return DropdownButtonFormField<SubCategory>(
-                    value: _selectedSubCategory,
-                    decoration: const InputDecoration(
-                        labelText: 'Sous-catégorie du Produit'),
-                    items: categoryViewModel.subCategories.map((subCategory) {
-                      return DropdownMenuItem<SubCategory>(
-                        value: subCategory,
-                        child: Text(subCategory.nom),
-                      );
-                    }).toList(),
-                    onChanged: (SubCategory? newValue) {
-                      setState(() {
-                        _selectedSubCategory = newValue;
-                      });
-                    },
-                    validator: (value) {
-                      if (value == null) {
-                        return 'Veuillez sélectionner une sous-catégorie';
-                      }
-                      return null;
-                    },
+                  return Column(
+                    children: [
+                      DropdownButtonFormField<Category>(
+                        value: _selectedCategory,
+                        decoration:
+                            const InputDecoration(labelText: 'Catégorie'),
+                        items: categoryViewModel.categories.map((category) {
+                          return DropdownMenuItem<Category>(
+                            value: category,
+                            child: Text(category.nom),
+                          );
+                        }).toList(),
+                        onChanged: (Category? newValue) {
+                          setState(() {
+                            _selectedCategory = newValue;
+                            _selectedSubCategory = null;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Veuillez sélectionner une catégorie';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<SubCategory>(
+                        value: _selectedSubCategory,
+                        decoration: const InputDecoration(
+                            labelText: 'Sous-catégorie du Produit'),
+                        items: _selectedCategory == null
+                            ? []
+                            : categoryViewModel.subCategories
+                                .where((sub) =>
+                                    sub.categoryId == _selectedCategory!.id)
+                                .map((subCategory) {
+                                return DropdownMenuItem<SubCategory>(
+                                  value: subCategory,
+                                  child: Text(subCategory.nom),
+                                );
+                              }).toList(),
+                        onChanged: (SubCategory? newValue) {
+                          setState(() {
+                            _selectedSubCategory = newValue;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Veuillez sélectionner une sous-catégorie';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   );
                 },
               ),
@@ -296,11 +344,10 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
         }
         return GridView.builder(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, // Ajustez le nombre de colonnes ici
+            crossAxisCount: 2,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio:
-                0.8, // Ajustez ce ratio pour éviter les débordements
+            childAspectRatio: 0.8,
           ),
           itemCount: produitViewModel.produits.length,
           itemBuilder: (context, index) {

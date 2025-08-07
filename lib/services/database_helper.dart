@@ -28,12 +28,10 @@ class DatabaseHelper {
   Future<Database> initDatabase() async {
     final dbPath = await databaseFactory.getDatabasesPath();
     final path = join(dbPath, 'product_app.db');
-    //await deleteDatabase(path);
 
-    // DÉCOMMENTEZ CETTE LIGNE UNE FOIS SEULEMENT pour recréer la DB
-    // avec le nouveau champ 'codeBarre' UNIQUE et NON-NULL.
-    // Après avoir lancé l'application, commentez à nouveau cette ligne.
-    // await deleteDatabase(path);
+    // DÉCOMMENTEZ CETTE LIGNE UNE FOIS POUR RECRÉER LA DB
+    // AVEC LA NOUVELLE STRUCTURE, PUIS COMMENTEZ-LA À NOUVEAU.
+    //await deleteDatabase(path);
 
     return await databaseFactory.openDatabase(path,
         options: OpenDatabaseOptions(
@@ -49,7 +47,7 @@ class DatabaseHelper {
             await db.execute('''
               CREATE TABLE sub_categories(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nom TEXT NOT NULL UNIQUE,
+                nom TEXT NOT NULL,
                 categoryId INTEGER NOT NULL,
                 FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE
               )
@@ -61,7 +59,7 @@ class DatabaseHelper {
                 nom TEXT NOT NULL,
                 prix REAL NOT NULL,
                 image TEXT,
-                codeBarre TEXT UNIQUE NOT NULL,  
+                codeBarre TEXT UNIQUE NOT NULL,
                 subCategoryId INTEGER NOT NULL,
                 FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
               )
@@ -115,7 +113,7 @@ class DatabaseHelper {
   Future<int> insertCategory(Category category) async {
     final db = await database;
     return await db.insert('categories', category.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+        conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   Future<List<Category>> getCategories() async {
@@ -138,8 +136,7 @@ class DatabaseHelper {
   // ---------------- SOUS-CATEGORIES ----------------
   Future<int> insertSubCategory(SubCategory subCategory) async {
     final db = await database;
-    return await db.insert('sub_categories', subCategory.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert('sub_categories', subCategory.toMap());
   }
 
   Future<List<SubCategory>> getSubCategories() async {
