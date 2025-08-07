@@ -1,3 +1,5 @@
+// lib/views/produit_list_page.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,7 @@ import '../models/category.dart';
 import '../models/sub_category.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
+import '../widgets/produit_card.dart';
 
 extension IterableExtension<T> on Iterable<T> {
   T? firstWhereOrNull(bool Function(T element) test) {
@@ -19,7 +22,8 @@ extension IterableExtension<T> on Iterable<T> {
 }
 
 class ProduitListPage extends StatefulWidget {
-  const ProduitListPage({super.key});
+  final SubCategory? subCategory;
+  const ProduitListPage({super.key, this.subCategory});
 
   @override
   _ProduitListPageState createState() => _ProduitListPageState();
@@ -39,6 +43,16 @@ class _ProduitListPageState extends State<ProduitListPage> {
       Provider.of<CategoryViewModel>(context, listen: false).fetchCategories();
       Provider.of<CategoryViewModel>(context, listen: false)
           .fetchSubCategories();
+
+      if (widget.subCategory != null) {
+        final categoryViewModel =
+            Provider.of<CategoryViewModel>(context, listen: false);
+        _selectedFilterSubCategory = widget.subCategory;
+        _selectedFilterCategory = categoryViewModel.categories.firstWhereOrNull(
+          (cat) => cat.id == widget.subCategory!.categoryId,
+        );
+        _updateAvailableFilterSubCategories(_selectedFilterCategory);
+      }
     });
     _searchController.addListener(_onSearchChanged);
   }
@@ -56,7 +70,6 @@ class _ProduitListPageState extends State<ProduitListPage> {
   void _updateAvailableFilterSubCategories(Category? category) {
     final categoryViewModel =
         Provider.of<CategoryViewModel>(context, listen: false);
-
     if (category == null) {
       _availableFilterSubCategories = [];
     } else {
@@ -71,11 +84,50 @@ class _ProduitListPageState extends State<ProduitListPage> {
     setState(() {});
   }
 
+  void _showEditProductForm(Produit produit) {
+    // Cette fonction doit naviguer vers votre page d'édition
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Édition de ${produit.nom}')),
+    );
+  }
+
+  void _confirmDeleteProduct(Produit produit) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirmer la suppression'),
+          content: Text('Êtes-vous sûr de vouloir supprimer ${produit.nom} ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Provider.of<ProduitViewModel>(context, listen: false)
+                    .deleteProduit(produit.id!);
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text('${produit.nom} supprimé avec succès')),
+                );
+              },
+              child: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Liste et Recherche Produits'),
+        title: Text(widget.subCategory != null
+            ? 'Produits - ${widget.subCategory!.nom}'
+            : 'Liste et Recherche Produits'),
       ),
       body: Column(
         children: [
@@ -122,7 +174,6 @@ class _ProduitListPageState extends State<ProduitListPage> {
                         }),
                       ],
                       onChanged: (Category? newValue) {
-                        // Corrected type
                         setState(() {
                           _selectedFilterCategory = newValue;
                           _updateAvailableFilterSubCategories(newValue);
@@ -154,7 +205,6 @@ class _ProduitListPageState extends State<ProduitListPage> {
                           _availableFilterSubCategories.isEmpty)
                       ? null
                       : (SubCategory? newValue) {
-                          // Corrected type
                           setState(() {
                             _selectedFilterSubCategory = newValue;
                           });
@@ -168,33 +218,27 @@ class _ProduitListPageState extends State<ProduitListPage> {
               builder: (context, produitViewModel, child) {
                 final categoryViewModel =
                     Provider.of<CategoryViewModel>(context);
-
-                List<Produit> currentProducts = produitViewModel.produits
-                    .where((p) => p.nom
-                        .toLowerCase()
-                        .contains(_searchController.text.toLowerCase()))
-                    .toList();
-
-                if (_selectedFilterCategory != null) {
-                  final subCategoriesInSelectedCategory = categoryViewModel
-                      .subCategories
-                      .where((subCat) =>
-                          subCat.categoryId == _selectedFilterCategory!.id)
-                      .map((subCat) => subCat.id)
-                      .toSet();
-
-                  currentProducts = currentProducts
-                      .where((p) => subCategoriesInSelectedCategory
-                          .contains(p.subCategoryId))
-                      .toList();
-                }
-
-                if (_selectedFilterSubCategory != null) {
-                  currentProducts = currentProducts
-                      .where((p) =>
-                          p.subCategoryId == _selectedFilterSubCategory!.id)
-                      .toList();
-                }
+                List<Produit> currentProducts =
+                    produitViewModel.produits.where((p) {
+                  bool matchesSearch = p.nom
+                      .toLowerCase()
+                      .contains(_searchController.text.toLowerCase());
+                  bool matchesCategory = true;
+                  if (_selectedFilterCategory != null) {
+                    final subCategory =
+                        categoryViewModel.subCategories.firstWhereOrNull(
+                      (subCat) => subCat.id == p.subCategoryId,
+                    );
+                    matchesCategory = subCategory != null &&
+                        subCategory.categoryId == _selectedFilterCategory!.id;
+                  }
+                  bool matchesSubCategory = true;
+                  if (_selectedFilterSubCategory != null) {
+                    matchesSubCategory =
+                        p.subCategoryId == _selectedFilterSubCategory!.id;
+                  }
+                  return matchesSearch && matchesCategory && matchesSubCategory;
+                }).toList();
 
                 if (currentProducts.isEmpty) {
                   return Center(
@@ -216,15 +260,6 @@ class _ProduitListPageState extends State<ProduitListPage> {
                               _selectedFilterCategory = null;
                               _selectedFilterSubCategory = null;
                               _availableFilterSubCategories = [];
-                              Provider.of<ProduitViewModel>(context,
-                                      listen: false)
-                                  .fetchProduits();
-                              Provider.of<CategoryViewModel>(context,
-                                      listen: false)
-                                  .fetchCategories();
-                              Provider.of<CategoryViewModel>(context,
-                                      listen: false)
-                                  .fetchSubCategories();
                             });
                           },
                           child: const Text('Réinitialiser les filtres'),
@@ -233,82 +268,24 @@ class _ProduitListPageState extends State<ProduitListPage> {
                     ),
                   );
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(8.0),
+
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16.0),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 300,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
                   itemCount: currentProducts.length,
                   itemBuilder: (_, index) {
                     final p = currentProducts[index];
-
-                    final subCategory =
-                        categoryViewModel.subCategories.firstWhereOrNull(
-                      (subCat) => subCat.id == p.subCategoryId,
-                    );
-
-                    // ignore: unnecessary_null_comparison
-                    final parentCategory = (subCategory != null)
-                        ? categoryViewModel.categories.firstWhereOrNull(
-                            (cat) => cat.id == subCategory.categoryId,
-                          )
-                        : null;
-
-                    final categoryNom = parentCategory?.nom ?? 'N/A';
-                    final subCategoryNom = subCategory?.nom ?? 'N/A';
-
-                    return Card(
-                      elevation: 3,
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 5),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8.0),
-                          child: p.image != null &&
-                                  p.image!.isNotEmpty &&
-                                  File(p.image!).existsSync()
-                              ? Image.file(
-                                  File(p.image!),
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                    width: 60,
-                                    height: 60,
-                                    color: Colors.grey[200],
-                                    child: const Icon(Icons.broken_image,
-                                        size: 30, color: Colors.grey),
-                                  ),
-                                )
-                              : Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.image_not_supported,
-                                      size: 30, color: Colors.grey),
-                                ),
-                        ),
-                        title: Text(
-                          p.nom,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('${p.prix.toStringAsFixed(2)} DT'),
-                            Text(
-                              '$categoryNom > $subCategoryNom',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Détails de ${p.nom}')),
-                          );
-                        },
-                      ),
+                    return ProduitCard(
+                      produit: p,
+                      onEdit: () => _showEditProductForm(p),
+                      onDelete: () => _confirmDeleteProduct(p),
+                      onAddToCart:
+                          null, // Pas de bouton "ajouter au panier" sur cette page
                     );
                   },
                 );

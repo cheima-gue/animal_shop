@@ -6,14 +6,16 @@ import '../models/produit.dart';
 
 class ProduitCard extends StatelessWidget {
   final Produit produit;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final Function(Produit)? onAddToCart;
 
   const ProduitCard({
     super.key,
     required this.produit,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
+    this.onAddToCart,
   });
 
   @override
@@ -22,24 +24,33 @@ class ProduitCard extends StatelessWidget {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
+            // MODIFIÉ
             child: ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(15)),
-              child: produit.image != null && produit.image!.isNotEmpty
-                  ? Image.file(
-                      File(produit.image!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image, size: 50),
-                    )
-                  : Container(
-                      color: Colors.grey[200],
-                      child: const Icon(Icons.fastfood,
-                          size: 50, color: Colors.grey),
-                    ),
+              child: Container(
+                width: double.infinity,
+                child: produit.image != null &&
+                        produit.image!.isNotEmpty &&
+                        File(produit.image!).existsSync()
+                    ? Image.file(
+                        File(produit.image!),
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.broken_image,
+                              size: 50, color: Colors.grey),
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.fastfood,
+                            size: 50, color: Colors.grey),
+                      ),
+              ),
             ),
           ),
           Padding(
@@ -70,14 +81,22 @@ class ProduitCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: onEdit,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: onDelete,
-                ),
+                if (onEdit != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: onEdit,
+                  ),
+                if (onDelete != null)
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: onDelete,
+                  ),
+                if (onAddToCart != null)
+                  IconButton(
+                    icon:
+                        const Icon(Icons.add_shopping_cart, color: Colors.teal),
+                    onPressed: () => onAddToCart!(produit),
+                  ),
               ],
             ),
           ),

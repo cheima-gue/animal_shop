@@ -1,38 +1,56 @@
-import 'package:flutter/material.dart'; //nécessaire pour utiliser ChangeNotifier, qui permet de notifier l’UI (interface utilisateur) quand il y a des changements.
+// lib/viewmodels/produit_viewmodel.dart
+
+import 'package:flutter/material.dart';
 import '../models/produit.dart';
-import '../services/database_helper.dart'; // Importez le DatabaseHelper
+import '../services/database_helper.dart';
 
 class ProduitViewModel extends ChangeNotifier {
+  // Crée une nouvelle instance de DatabaseHelper, comme dans votre code initial
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   List<Produit> _produits = [];
   List<Produit> get produits => _produits;
 
+  // Nouvelle liste pour le panier
+  List<Produit> _cartItems = [];
+  List<Produit> get cartItems => _cartItems;
+
   ProduitViewModel() {
-    fetchProduits(); // Charge les produits depuis la base de données au démarrage
+    // Appelle fetchProduits directement dans le constructeur
+    fetchProduits();
   }
 
-  // Récupère les produits depuis la base de données
   Future<void> fetchProduits() async {
     _produits = await _dbHelper.getProduits();
     notifyListeners();
   }
 
-  // Ajoute un nouveau produit dans la base de données
   Future<void> addProduit(Produit produit) async {
     await _dbHelper.insertProduit(produit);
-    await fetchProduits(); // Met à jour la liste depuis la DB
+    await fetchProduits();
   }
 
-  // Met à jour un produit existant dans la base de données
   Future<void> updateProduit(Produit updatedProduit) async {
     await _dbHelper.updateProduit(updatedProduit);
-    await fetchProduits(); // Met à jour la liste depuis la DB
+    await fetchProduits();
   }
 
-  // Supprime un produit de la base de données par ID
   Future<void> deleteProduit(int id) async {
     await _dbHelper.deleteProduit(id);
-    await fetchProduits(); // Met à jour la liste depuis la DB
+    await fetchProduits();
+  }
+
+  // --- Nouvelles méthodes pour la gestion du panier ---
+
+  // Ajoute un produit au panier
+  void addToCart(Produit produit) {
+    _cartItems.add(produit);
+    notifyListeners();
+  }
+
+  // Retire un produit du panier
+  void removeFromCart(Produit produit) {
+    _cartItems.remove(produit);
+    notifyListeners();
   }
 }
