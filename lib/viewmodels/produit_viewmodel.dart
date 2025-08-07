@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; //nécessaire pour utiliser ChangeNotifier, qui permet de notifier l’UI (interface utilisateur) quand il y a des changements.
 import '../models/produit.dart';
 import '../services/database_helper.dart'; // Importez le DatabaseHelper
 

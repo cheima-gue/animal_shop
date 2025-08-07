@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/produit.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/cart_viewmodel.dart';
+import '../utils/currency_formatter.dart'; // Assurez-vous que ce fichier existe
 
 class OrderPage extends StatefulWidget {
   const OrderPage({super.key});
@@ -38,7 +38,7 @@ class _OrderPageState extends State<OrderPage> {
         return AlertDialog(
           title: const Text('Confirmation de la commande'),
           content: Text(
-            'Êtes-vous sûr de vouloir passer cette commande pour un total de ${cartViewModel.totalPrice.toStringAsFixed(2)} DT ?',
+            'Êtes-vous sûr de vouloir passer cette commande pour un total de ${formatCurrency(cartViewModel.totalPrice)} ?',
           ),
           actions: <Widget>[
             TextButton(
@@ -50,7 +50,7 @@ class _OrderPageState extends State<OrderPage> {
             TextButton(
               child: const Text('Confirmer'),
               onPressed: () {
-                // TODO: Logique pour enregistrer la commande
+                // TODO: Logique pour enregistrer la commande dans la DB
                 cartViewModel.clearCart();
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -70,9 +70,14 @@ class _OrderPageState extends State<OrderPage> {
     final produitViewModel = Provider.of<ProduitViewModel>(context);
     final cartViewModel = Provider.of<CartViewModel>(context);
 
-    // Filtrer les produits en fonction de la recherche
+    // Modifier la logique de filtrage pour inclure le code-barres
     final filteredProduits = produitViewModel.produits.where((produit) {
-      return produit.nom.toLowerCase().contains(_searchText.toLowerCase());
+      final searchTextLower = _searchText.toLowerCase();
+      final bool matchesName =
+          produit.nom.toLowerCase().contains(searchTextLower);
+      final bool matchesCodeBarre =
+          produit.codeBarre?.toLowerCase().contains(searchTextLower) ?? false;
+      return matchesName || matchesCodeBarre;
     }).toList();
 
     return Scaffold(
@@ -91,7 +96,8 @@ class _OrderPageState extends State<OrderPage> {
                   TextField(
                     controller: _searchController,
                     decoration: const InputDecoration(
-                      labelText: 'Rechercher un produit...',
+                      labelText:
+                          'Rechercher un produit (nom ou code-barres)...',
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(),
                     ),
@@ -106,8 +112,9 @@ class _OrderPageState extends State<OrderPage> {
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           child: ListTile(
                             title: Text(produit.nom),
-                            subtitle:
-                                Text('${produit.prix.toStringAsFixed(2)} DT'),
+                            subtitle: Text(
+                              '${formatCurrency(produit.prix)}${produit.codeBarre != null ? ' | Code: ${produit.codeBarre}' : ''}',
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.add_shopping_cart,
                                   color: Colors.teal),
@@ -146,9 +153,9 @@ class _OrderPageState extends State<OrderPage> {
                         return ListTile(
                           title: Text(orderItem.produit.nom),
                           subtitle: Text(
-                              'Quantité: ${orderItem.quantity} x ${orderItem.price.toStringAsFixed(2)} DT'),
-                          trailing: Text(
-                              '${(orderItem.quantity * orderItem.price).toStringAsFixed(2)} DT'),
+                              'Quantité: ${orderItem.quantity} x ${formatCurrency(orderItem.price)}'),
+                          trailing: Text(formatCurrency(
+                              orderItem.quantity * orderItem.price)),
                         );
                       },
                     ),
@@ -165,7 +172,7 @@ class _OrderPageState extends State<OrderPage> {
                               fontSize: 20, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          '${cartViewModel.totalPrice.toStringAsFixed(2)} DT',
+                          formatCurrency(cartViewModel.totalPrice),
                           style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,

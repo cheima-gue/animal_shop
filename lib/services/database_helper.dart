@@ -1,6 +1,5 @@
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
-import 'dart:io';
 import '../models/produit.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
@@ -27,10 +26,11 @@ class DatabaseHelper {
   Future<Database> initDatabase() async {
     final dbPath = await databaseFactory.getDatabasesPath();
     final path = join(dbPath, 'product_app.db');
+    //await deleteDatabase(path);
 
-    // NOUVEAU : C'est la ligne magique. Elle supprime l'ancienne base de données
-    // pour garantir que la prochaine ouverture en créera une nouvelle.
-    // DÉCOMMENTEZ LA LIGNE SUIVANTE UNE SEULE FOIS, PUIS COMMENTEZ-LA DE NOUVEAU.
+    // DÉCOMMENTEZ CETTE LIGNE UNE FOIS SEULEMENT pour recréer la DB
+    // avec le nouveau champ 'codeBarre'.
+    // Après avoir lancé l'application, commentez à nouveau cette ligne.
     // await deleteDatabase(path);
 
     return await databaseFactory.openDatabase(path,
@@ -59,6 +59,7 @@ class DatabaseHelper {
                 nom TEXT NOT NULL,
                 prix REAL NOT NULL,
                 image TEXT,
+                codeBarre TEXT,
                 subCategoryId INTEGER NOT NULL,
                 FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
               )
