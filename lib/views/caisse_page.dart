@@ -121,6 +121,7 @@ class _CaissePageState extends State<CaissePage> {
                       .updateProductQuantity(
                           produit.codeBarre!, nouvelleQuantite);
                 } else {
+                  // Si la quantité est 0, on supprime le produit
                   Provider.of<ProduitViewModel>(context, listen: false)
                       .removeProductFromCart(produit.codeBarre!);
                 }
@@ -176,10 +177,16 @@ class _CaissePageState extends State<CaissePage> {
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
                                 '${produit.prix.toStringAsFixed(2)} DT x ${produit.quantite}'),
-                            trailing: Text(
-                                '${(produit.prix * produit.quantite).toStringAsFixed(2)} DT',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                // Appel de la méthode de suppression du ViewModel
+                                if (produit.codeBarre != null) {
+                                  produitViewModel.removeProductFromCart(
+                                      produit.codeBarre!);
+                                }
+                              },
+                            ),
                           ),
                         );
                       },
