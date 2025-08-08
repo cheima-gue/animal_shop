@@ -17,6 +17,7 @@ dependencies:
   google_fonts: ^6.2.1
   provider: ^6.1.2 # Mise à jour vers la version utilisée dans l'exemple
   path_provider: ^2.1.5
+  audioplayers: ^6.5.0
 
 dev_dependencies:
   flutter_test:

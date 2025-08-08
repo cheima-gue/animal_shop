@@ -1,10 +1,13 @@
+// lib/models/produit.dart
+
 class Produit {
   int? id;
   String nom;
   double prix;
   String? image;
-  String codeBarre; // Rendu obligatoire
+  String codeBarre;
   int subCategoryId;
+  int quantite; // <-- AJOUTEZ CETTE LIGNE
 
   Produit({
     this.id,
@@ -13,6 +16,7 @@ class Produit {
     this.image,
     required this.codeBarre,
     required this.subCategoryId,
+    this.quantite = 0, // Initialisation de la quantité à 0 par défaut
   });
 
   Map<String, dynamic> toMap() {
@@ -28,12 +32,36 @@ class Produit {
 
   factory Produit.fromMap(Map<String, dynamic> map) {
     return Produit(
-      id: map['id'] as int?,
-      nom: map['nom'] as String,
-      prix: map['prix'] as double,
-      image: map['image'] as String?,
-      codeBarre: map['codeBarre'] as String,
-      subCategoryId: map['subCategoryId'] as int,
+      id: map['id'],
+      nom: map['nom'],
+      prix: map['prix'],
+      image: map['image'],
+      codeBarre: map['codeBarre'],
+      subCategoryId: map['subCategoryId'],
+      quantite: map.containsKey('quantite')
+          ? map['quantite']
+          : 0, // Gérer la quantité lors de la lecture de la base de données
+    );
+  }
+
+  // Ajout de la méthode pour créer une copie
+  Produit copyWith({
+    int? id,
+    String? nom,
+    double? prix,
+    String? image,
+    String? codeBarre,
+    int? subCategoryId,
+    int? quantite,
+  }) {
+    return Produit(
+      id: id ?? this.id,
+      nom: nom ?? this.nom,
+      prix: prix ?? this.prix,
+      image: image ?? this.image,
+      codeBarre: codeBarre ?? this.codeBarre,
+      subCategoryId: subCategoryId ?? this.subCategoryId,
+      quantite: quantite ?? this.quantite,
     );
   }
 }

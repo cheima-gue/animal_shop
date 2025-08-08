@@ -1,10 +1,11 @@
-// lib/viewmodels/cart_viewmodel.dart
+// lib/viewmodels/cart_viewmodel.dart :
 
 import 'package:flutter/material.dart';
-import '../models/order_item.dart';
+import '../models/order_item.dart'; //article dans le panier
 import '../models/produit.dart';
 
 class CartViewModel extends ChangeNotifier {
+  //observateur : quand le panier change on appelle notifylisteners
   final Map<int, OrderItem> _items = {};
 
   List<OrderItem> get items => _items.values.toList();

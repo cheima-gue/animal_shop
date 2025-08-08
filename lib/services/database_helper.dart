@@ -109,6 +109,20 @@ class DatabaseHelper {
     return await db.delete('produits', where: 'id = ?', whereArgs: [id]);
   }
 
+  // NOUVELLE MÉTHODE POUR LA CAISSE
+  Future<Produit?> getProduitByCodeBarre(String codeBarre) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'produits',
+      where: 'codeBarre = ?',
+      whereArgs: [codeBarre],
+    );
+    if (maps.isNotEmpty) {
+      return Produit.fromMap(maps.first);
+    }
+    return null;
+  }
+
   // ---------------- CATEGORIES ----------------
   Future<int> insertCategory(Category category) async {
     final db = await database;

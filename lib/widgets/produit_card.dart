@@ -31,7 +31,7 @@ class ProduitCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(15)),
-              child: Container(
+              child: SizedBox(
                 width: double.infinity,
                 child: produit.image != null &&
                         produit.image!.isNotEmpty &&

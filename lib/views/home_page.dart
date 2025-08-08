@@ -11,6 +11,7 @@ import 'order_page.dart';
 import 'produit_home_page.dart';
 import 'category_management_page.dart';
 import 'produit_list_page.dart';
+import 'caisse_page.dart'; // Importez la nouvelle page
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,11 +23,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
+  // L'erreur vient du fait que _HomePageContent est une classe de widget, pas une méthode de _HomePageState
   final List<Widget> _pages = [
-    _HomePageContent(),
+    _HomePageContent(), // Appelez la classe du widget ici
     ProduitHomePage(),
     CategoryManagementPage(),
-    OrderPage(),
+    CaissePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -68,8 +70,8 @@ class _HomePageState extends State<HomePage> {
             label: 'Catégories',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Commandes',
+            icon: Icon(Icons.point_of_sale),
+            label: 'Caisse',
           ),
         ],
         currentIndex: _selectedIndex,
@@ -81,6 +83,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// Le reste de la classe _HomePageContent doit être une classe de widget distincte, définie APART.
 class _HomePageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -329,7 +332,7 @@ class _HomePageContent extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 16.0,
                     mainAxisSpacing: 16.0,
-                    childAspectRatio: 1.1, // MODIFIÉ
+                    childAspectRatio: 1.1,
                   ),
                   itemCount: featuredProduits.length,
                   itemBuilder: (context, index) {

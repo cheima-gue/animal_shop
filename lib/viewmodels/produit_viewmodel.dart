@@ -5,18 +5,15 @@ import '../models/produit.dart';
 import '../services/database_helper.dart';
 
 class ProduitViewModel extends ChangeNotifier {
-  // Crée une nouvelle instance de DatabaseHelper, comme dans votre code initial
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   List<Produit> _produits = [];
   List<Produit> get produits => _produits;
 
-  // Nouvelle liste pour le panier
-  List<Produit> _cartItems = [];
-  List<Produit> get cartItems => _cartItems;
+  Map<int, Produit> _cartItems = {};
+  Map<int, Produit> get cartItems => _cartItems;
 
   ProduitViewModel() {
-    // Appelle fetchProduits directement dans le constructeur
     fetchProduits();
   }
 
@@ -42,15 +39,44 @@ class ProduitViewModel extends ChangeNotifier {
 
   // --- Nouvelles méthodes pour la gestion du panier ---
 
-  // Ajoute un produit au panier
   void addToCart(Produit produit) {
-    _cartItems.add(produit);
+    if (_cartItems.containsKey(produit.id)) {
+      final existingProduct = _cartItems[produit.id]!;
+      _cartItems[produit.id!] =
+          existingProduct.copyWith(quantite: existingProduct.quantite + 1);
+    } else {
+      _cartItems[produit.id!] = produit.copyWith(quantite: 1);
+    }
     notifyListeners();
   }
 
-  // Retire un produit du panier
   void removeFromCart(Produit produit) {
-    _cartItems.remove(produit);
+    if (_cartItems.containsKey(produit.id)) {
+      final existingProduct = _cartItems[produit.id]!;
+      if (existingProduct.quantite > 1) {
+        _cartItems[produit.id!] =
+            existingProduct.copyWith(quantite: existingProduct.quantite - 1);
+      } else {
+        _cartItems.remove(produit.id);
+      }
+    }
     notifyListeners();
+  }
+
+  void removeAllFromCart(Produit produit) {
+    _cartItems.remove(produit.id);
+    notifyListeners();
+  }
+
+  double get totalPrice {
+    return _cartItems.values
+        .fold(0, (total, current) => total + (current.prix * current.quantite));
+  }
+
+  Future<void> addProductByBarcode(String codeBarre) async {
+    final produit = await _dbHelper.getProduitByCodeBarre(codeBarre);
+    if (produit != null) {
+      addToCart(produit);
+    }
   }
 }
