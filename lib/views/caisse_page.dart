@@ -1,7 +1,10 @@
+// lib/views/caisse_page.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../models/produit.dart';
 import '../viewmodels/produit_viewmodel.dart';
 
 class CaissePage extends StatefulWidget {
@@ -40,17 +43,15 @@ class _CaissePageState extends State<CaissePage> {
 
   void _onKey(RawKeyEvent event) {
     if (event is RawKeyDownEvent) {
-      // Ignore modifier keys to prevent assertion errors.
       if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
           event.logicalKey == LogicalKeyboardKey.shiftRight ||
           event.logicalKey == LogicalKeyboardKey.controlLeft ||
           event.logicalKey == LogicalKeyboardKey.controlRight ||
           event.logicalKey == LogicalKeyboardKey.altLeft ||
           event.logicalKey == LogicalKeyboardKey.altRight) {
-        return; // Ignore these key presses
+        return;
       }
 
-      // The scanner's input ends with the 'Enter' key.
       if (event.logicalKey == LogicalKeyboardKey.enter) {
         final barcode = _barcodeController.text.trim();
         if (barcode.isNotEmpty) {
@@ -59,7 +60,6 @@ class _CaissePageState extends State<CaissePage> {
           _barcodeController.clear();
         }
       } else if (event.character != null && _isDigit(event.character!)) {
-        // We only add digits to the barcode controller.
         _barcodeController.text += event.character!;
       }
     }
@@ -82,6 +82,57 @@ class _CaissePageState extends State<CaissePage> {
         _monnaieARendre = 0;
       }
     });
+  }
+
+  Future<void> _showQuantityDialog(Produit produit) async {
+    final TextEditingController quantiteController =
+        TextEditingController(text: produit.quantite.toString());
+
+    _focusNode.unfocus();
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Modifier la quantité de ${produit.nom}'),
+          content: TextField(
+            controller: quantiteController,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Nouvelle quantité'),
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Annuler'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Confirmer'),
+              onPressed: () {
+                final nouvelleQuantite =
+                    int.tryParse(quantiteController.text) ?? 0;
+                if (nouvelleQuantite > 0) {
+                  Provider.of<ProduitViewModel>(context, listen: false)
+                      .updateProductQuantity(
+                          produit.codeBarre!, nouvelleQuantite);
+                } else {
+                  Provider.of<ProduitViewModel>(context, listen: false)
+                      .removeProductFromCart(produit.codeBarre!);
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    FocusScope.of(context).requestFocus(_focusNode);
   }
 
   @override
@@ -109,6 +160,7 @@ class _CaissePageState extends State<CaissePage> {
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 8.0),
                           child: ListTile(
+                            onTap: () => _showQuantityDialog(produit),
                             leading: produit.image != null &&
                                     produit.image!.isNotEmpty &&
                                     File(produit.image!).existsSync()
