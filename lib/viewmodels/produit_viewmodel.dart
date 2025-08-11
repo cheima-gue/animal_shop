@@ -1,5 +1,8 @@
+// lib/viewmodels/produit_viewmodel.dart
+
 import 'package:flutter/material.dart';
 import '../models/produit.dart';
+import '../models/client.dart'; // Importez le modèle Client
 import '../services/database_helper.dart';
 
 class ProduitViewModel extends ChangeNotifier {
@@ -12,11 +15,9 @@ class ProduitViewModel extends ChangeNotifier {
   Map<String, Produit> get cartItems => _cartItems;
 
   // Nouveaux champs pour la fonctionnalité client/passager
-  bool _isLoyalCustomer = false;
-  String? _clientId;
+  Client? _selectedClient;
 
-  bool get isLoyalCustomer => _isLoyalCustomer;
-  String? get clientId => _clientId;
+  Client? get selectedClient => _selectedClient;
 
   ProduitViewModel() {
     fetchProduits();
@@ -45,7 +46,6 @@ class ProduitViewModel extends ChangeNotifier {
   // --- Méthodes pour le panier ---
 
   void addToCart(Produit produit) {
-    // ignore: unnecessary_null_comparison
     if (produit.codeBarre == null) return;
 
     if (_cartItems.containsKey(produit.codeBarre)) {
@@ -84,15 +84,13 @@ class ProduitViewModel extends ChangeNotifier {
         .fold(0, (total, current) => total + (current.prix * current.quantite));
   }
 
-  // Nouvelle méthode pour le montant de la réduction
   double get discountAmount {
-    if (_isLoyalCustomer) {
+    if (_selectedClient != null) {
       return subtotal * 0.05;
     }
     return 0.0;
   }
 
-  // Le prix total inclut maintenant la réduction
   double get totalPrice {
     return subtotal - discountAmount;
   }
@@ -120,15 +118,14 @@ class ProduitViewModel extends ChangeNotifier {
     }
   }
 
-  // Nouvelle méthode pour définir le type de client
-  void setIsLoyalCustomer(bool isLoyal) {
-    _isLoyalCustomer = isLoyal;
+  // Nouvelle méthode pour valider le CIN et sélectionner le client
+  Future<void> selectClientByCin(String cin) async {
+    _selectedClient = await _dbHelper.getClientByCin(cin);
     notifyListeners();
   }
 
-  // Nouvelle méthode pour définir l'ID du client (si nécessaire)
-  void setClientId(String? id) {
-    _clientId = id;
+  void resetClient() {
+    _selectedClient = null;
     notifyListeners();
   }
 }

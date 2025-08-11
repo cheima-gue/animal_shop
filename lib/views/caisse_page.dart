@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/produit.dart';
 import '../viewmodels/produit_viewmodel.dart';
+import '../models/client.dart'; // N'oubliez pas d'importer le modèle Client
 
 class CaissePage extends StatefulWidget {
   const CaissePage({super.key});
@@ -18,11 +19,14 @@ class _CaissePageState extends State<CaissePage> {
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _montantRecuController = TextEditingController();
-  final TextEditingController _clientIdController = TextEditingController();
+  final TextEditingController _cinController = TextEditingController();
 
   double _montantRecu = 0.0;
   double _monnaieARendre = 0.0;
-  bool _isLoyalCustomer = false; // État local pour les boutons radio
+  String _cinValidationMessage = '';
+
+  // Variable d'état pour les boutons radio, qui ne dépend pas du ViewModel
+  bool _isLoyalCustomer = false;
 
   @override
   void initState() {
@@ -40,7 +44,7 @@ class _CaissePageState extends State<CaissePage> {
     _barcodeController.dispose();
     _montantRecuController.removeListener(_calculerMonnaie);
     _montantRecuController.dispose();
-    _clientIdController.dispose();
+    _cinController.dispose();
     super.dispose();
   }
 
@@ -138,6 +142,30 @@ class _CaissePageState extends State<CaissePage> {
     FocusScope.of(context).requestFocus(_focusNode);
   }
 
+  void _validateCin(String cin) async {
+    final produitViewModel =
+        Provider.of<ProduitViewModel>(context, listen: false);
+    if (cin.isEmpty) {
+      produitViewModel.resetClient();
+      setState(() {
+        _cinValidationMessage = '';
+      });
+      return;
+    }
+
+    await produitViewModel.selectClientByCin(cin);
+    if (produitViewModel.selectedClient != null) {
+      setState(() {
+        _cinValidationMessage =
+            'Client: ${produitViewModel.selectedClient!.firstName} ${produitViewModel.selectedClient!.lastName}';
+      });
+    } else {
+      setState(() {
+        _cinValidationMessage = 'Numéro de CIN non trouvé.';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -194,7 +222,6 @@ class _CaissePageState extends State<CaissePage> {
                     ),
                   ),
                   const Divider(),
-                  // Section pour la sélection du client
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
                     child: Column(
@@ -209,13 +236,16 @@ class _CaissePageState extends State<CaissePage> {
                               child: RadioListTile<bool>(
                                 title: const Text('Passager'),
                                 value: false,
-                                groupValue: _isLoyalCustomer,
+                                groupValue:
+                                    _isLoyalCustomer, // Utilise la variable d'état locale
                                 onChanged: (bool? value) {
-                                  if (value != null) {
+                                  if (value != null && !value) {
                                     setState(() {
-                                      _isLoyalCustomer = value;
+                                      _isLoyalCustomer = false;
+                                      _cinValidationMessage = '';
+                                      _cinController.clear();
                                     });
-                                    produitViewModel.setIsLoyalCustomer(value);
+                                    produitViewModel.resetClient();
                                   }
                                 },
                               ),
@@ -224,13 +254,14 @@ class _CaissePageState extends State<CaissePage> {
                               child: RadioListTile<bool>(
                                 title: const Text('Client'),
                                 value: true,
-                                groupValue: _isLoyalCustomer,
+                                groupValue:
+                                    _isLoyalCustomer, // Utilise la variable d'état locale
                                 onChanged: (bool? value) {
-                                  if (value != null) {
+                                  if (value != null && value) {
                                     setState(() {
-                                      _isLoyalCustomer = value;
+                                      _isLoyalCustomer = true;
                                     });
-                                    produitViewModel.setIsLoyalCustomer(value);
+                                    FocusScope.of(context).requestFocus();
                                   }
                                 },
                               ),
@@ -241,15 +272,32 @@ class _CaissePageState extends State<CaissePage> {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8.0),
                             child: TextField(
-                              controller: _clientIdController,
+                              controller: _cinController,
                               keyboardType: TextInputType.text,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Numéro de carte de fidélité',
-                                border: OutlineInputBorder(),
+                                border: const OutlineInputBorder(),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.search),
+                                  onPressed: () {
+                                    _validateCin(_cinController.text);
+                                  },
+                                ),
                               ),
-                              onChanged: (value) {
-                                produitViewModel.setClientId(value);
-                              },
+                              onSubmitted: _validateCin,
+                            ),
+                          ),
+                        if (_cinValidationMessage.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              _cinValidationMessage,
+                              style: TextStyle(
+                                color: produitViewModel.selectedClient != null
+                                    ? Colors.green
+                                    : Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                       ],
@@ -304,7 +352,7 @@ class _CaissePageState extends State<CaissePage> {
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
                             labelText: 'Montant reçu du client',
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
                           ),
                           onChanged: (_) => _calculerMonnaie(),
                         ),
@@ -329,15 +377,15 @@ class _CaissePageState extends State<CaissePage> {
                   ElevatedButton(
                     onPressed: () {
                       produitViewModel.cartItems.clear();
-                      produitViewModel
-                          .setIsLoyalCustomer(false); // Réinitialiser le client
-                      _clientIdController.clear();
+                      produitViewModel.resetClient();
+                      _cinController.clear();
                       produitViewModel.notifyListeners();
                       _montantRecuController.clear();
                       setState(() {
                         _montantRecu = 0.0;
                         _monnaieARendre = 0.0;
                         _isLoyalCustomer = false;
+                        _cinValidationMessage = '';
                       });
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(

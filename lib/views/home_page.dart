@@ -11,7 +11,8 @@ import 'order_page.dart';
 import 'produit_home_page.dart';
 import 'category_management_page.dart';
 import 'produit_list_page.dart';
-import 'caisse_page.dart'; // Importez la nouvelle page
+import 'caisse_page.dart';
+import 'client_management_page.dart'; // Importez la nouvelle page
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,6 +30,7 @@ class _HomePageState extends State<HomePage> {
     const ProduitHomePage(),
     const CategoryManagementPage(),
     const CaissePage(),
+    const ClientManagementPage(), // Ajoutez la nouvelle page ici
   ];
 
   void _onItemTapped(int index) {
@@ -73,6 +75,11 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.point_of_sale),
             label: 'Caisse',
           ),
+          BottomNavigationBarItem(
+            // Nouvel onglet pour les clients
+            icon: Icon(Icons.group),
+            label: 'Clients',
+          ),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: Theme.of(context).primaryColor,
@@ -83,7 +90,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// Le reste de la classe _HomePageContent doit être une classe de widget distincte, définie APART.
+// Le reste de la classe _HomePageContent reste inchangé.
 class _HomePageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

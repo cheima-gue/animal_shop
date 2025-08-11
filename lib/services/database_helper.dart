@@ -5,6 +5,7 @@ import 'package:path/path.dart';
 import '../models/produit.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
+import '../models/client.dart'; // Importez le nouveau modèle Client
 
 class DatabaseHelper {
   static Database? _database;
@@ -29,13 +30,9 @@ class DatabaseHelper {
     final dbPath = await databaseFactory.getDatabasesPath();
     final path = join(dbPath, 'product_app.db');
 
-    // DÉCOMMENTEZ CETTE LIGNE UNE FOIS POUR RECRÉER LA DB
-    // AVEC LA NOUVELLE STRUCTURE, PUIS COMMENTEZ-LA À NOUVEAU.
-    //await deleteDatabase(path);
-
     return await databaseFactory.openDatabase(path,
         options: OpenDatabaseOptions(
-          version: 1,
+          version: 2, // Incrémentez la version de la base de données
           onCreate: (db, version) async {
             await db.execute('''
               CREATE TABLE categories(
@@ -64,6 +61,29 @@ class DatabaseHelper {
                 FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
               )
             ''');
+
+            // Créez la nouvelle table pour les clients
+            await db.execute('''
+              CREATE TABLE clients(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                firstName TEXT,
+                lastName TEXT,
+                cin TEXT UNIQUE
+              )
+            ''');
+          },
+          onUpgrade: (db, oldVersion, newVersion) async {
+            if (oldVersion < 2) {
+              // Ajoutez la nouvelle table si la version est inférieure à 2
+              await db.execute('''
+                CREATE TABLE clients(
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  firstName TEXT,
+                  lastName TEXT,
+                  cin TEXT UNIQUE
+                )
+              ''');
+            }
           },
           onConfigure: (db) async {
             await db.execute('PRAGMA foreign_keys = ON');
@@ -168,5 +188,28 @@ class DatabaseHelper {
   Future<int> deleteSubCategory(int id) async {
     final db = await database;
     return await db.delete('sub_categories', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---------------- NOUVELLES MÉTHODES POUR LES CLIENTS ----------------
+  Future<int> insertClient(Client client) async {
+    final db = await database;
+    return await db.insert(
+      'clients',
+      client.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Client?> getClientByCin(String cin) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'clients',
+      where: 'cin = ?',
+      whereArgs: [cin],
+    );
+    if (maps.isNotEmpty) {
+      return Client.fromMap(maps.first);
+    }
+    return null;
   }
 }
