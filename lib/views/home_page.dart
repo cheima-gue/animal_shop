@@ -26,9 +26,9 @@ class _HomePageState extends State<HomePage> {
   // L'erreur vient du fait que _HomePageContent est une classe de widget, pas une méthode de _HomePageState
   final List<Widget> _pages = [
     _HomePageContent(), // Appelez la classe du widget ici
-    ProduitHomePage(),
-    CategoryManagementPage(),
-    CaissePage(),
+    const ProduitHomePage(),
+    const CategoryManagementPage(),
+    const CaissePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -107,16 +107,16 @@ class _HomePageContent extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.phone, color: Colors.grey, size: 16),
-              const SizedBox(width: 8),
-              const Text('+216 51 511 511',
+              Icon(Icons.phone, color: Colors.grey, size: 16),
+              SizedBox(width: 8),
+              Text('+216 51 511 511',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(width: 24),
-              const Icon(Icons.email, color: Colors.grey, size: 16),
-              const SizedBox(width: 8),
-              const Text('contact@mypets.tn',
+              SizedBox(width: 24),
+              Icon(Icons.email, color: Colors.grey, size: 16),
+              SizedBox(width: 8),
+              Text('contact@mypets.tn',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),

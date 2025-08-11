@@ -1,5 +1,3 @@
-// lib/viewmodels/produit_viewmodel.dart
-
 import 'package:flutter/material.dart';
 import '../models/produit.dart';
 import '../services/database_helper.dart';
@@ -10,9 +8,15 @@ class ProduitViewModel extends ChangeNotifier {
   List<Produit> _produits = [];
   List<Produit> get produits => _produits;
 
-  // Utiliser le code-barres (String) comme clé au lieu de l'ID (int?)
   Map<String, Produit> _cartItems = {};
   Map<String, Produit> get cartItems => _cartItems;
+
+  // Nouveaux champs pour la fonctionnalité client/passager
+  bool _isLoyalCustomer = false;
+  String? _clientId;
+
+  bool get isLoyalCustomer => _isLoyalCustomer;
+  String? get clientId => _clientId;
 
   ProduitViewModel() {
     fetchProduits();
@@ -38,9 +42,10 @@ class ProduitViewModel extends ChangeNotifier {
     await fetchProduits();
   }
 
-  // --- Méthodes corrigées pour la gestion du panier ---
+  // --- Méthodes pour le panier ---
 
   void addToCart(Produit produit) {
+    // ignore: unnecessary_null_comparison
     if (produit.codeBarre == null) return;
 
     if (_cartItems.containsKey(produit.codeBarre)) {
@@ -74,9 +79,22 @@ class ProduitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  double get totalPrice {
+  double get subtotal {
     return _cartItems.values
         .fold(0, (total, current) => total + (current.prix * current.quantite));
+  }
+
+  // Nouvelle méthode pour le montant de la réduction
+  double get discountAmount {
+    if (_isLoyalCustomer) {
+      return subtotal * 0.05;
+    }
+    return 0.0;
+  }
+
+  // Le prix total inclut maintenant la réduction
+  double get totalPrice {
+    return subtotal - discountAmount;
   }
 
   Future<void> addProductByBarcode(String codeBarre) async {
@@ -86,7 +104,6 @@ class ProduitViewModel extends ChangeNotifier {
     }
   }
 
-  // Méthodes de mise à jour et de suppression de produit corrigées
   void updateProductQuantity(String codeBarre, int nouvelleQuantite) {
     if (cartItems.containsKey(codeBarre)) {
       final existingProduct = cartItems[codeBarre]!;
@@ -101,5 +118,17 @@ class ProduitViewModel extends ChangeNotifier {
       cartItems.remove(codeBarre);
       notifyListeners();
     }
+  }
+
+  // Nouvelle méthode pour définir le type de client
+  void setIsLoyalCustomer(bool isLoyal) {
+    _isLoyalCustomer = isLoyal;
+    notifyListeners();
+  }
+
+  // Nouvelle méthode pour définir l'ID du client (si nécessaire)
+  void setClientId(String? id) {
+    _clientId = id;
+    notifyListeners();
   }
 }
