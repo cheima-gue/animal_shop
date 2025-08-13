@@ -2,125 +2,81 @@
 
 import 'package:flutter/material.dart';
 import '../models/produit.dart';
-import '../models/client.dart'; // Importez le modèle Client
+import '../models/client.dart';
 import '../services/database_helper.dart';
 
 class ProduitViewModel extends ChangeNotifier {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-
+  final DatabaseHelper _databaseHelper = DatabaseHelper();
   List<Produit> _produits = [];
-  List<Produit> get produits => _produits;
-
   Map<String, Produit> _cartItems = {};
-  Map<String, Produit> get cartItems => _cartItems;
-
-  // Nouveaux champs pour la fonctionnalité client/passager
   Client? _selectedClient;
 
+  List<Produit> get produits => _produits;
+  Map<String, Produit> get cartItems => _cartItems;
   Client? get selectedClient => _selectedClient;
 
-  ProduitViewModel() {
-    fetchProduits();
-  }
+  double get subtotal => _cartItems.values
+      .fold(0.0, (sum, item) => sum + (item.prix * item.quantite));
+  double get discountAmount => _selectedClient != null ? subtotal * 0.05 : 0.0;
+  double get totalPrice => subtotal - discountAmount;
 
   Future<void> fetchProduits() async {
-    _produits = await _dbHelper.getProduits();
+    _produits = await _databaseHelper.getProduits();
     notifyListeners();
   }
 
   Future<void> addProduit(Produit produit) async {
-    await _dbHelper.insertProduit(produit);
-    await fetchProduits();
+    await _databaseHelper.insertProduit(produit);
+    fetchProduits();
   }
 
-  Future<void> updateProduit(Produit updatedProduit) async {
-    await _dbHelper.updateProduit(updatedProduit);
-    await fetchProduits();
+  Future<void> updateProduit(Produit produit) async {
+    await _databaseHelper.updateProduit(produit);
+    fetchProduits();
   }
 
   Future<void> deleteProduit(int id) async {
-    await _dbHelper.deleteProduit(id);
-    await fetchProduits();
+    await _databaseHelper.deleteProduit(id);
+    fetchProduits();
   }
 
-  // --- Méthodes pour le panier ---
+  Future<bool> addProductByBarcode(String codeBarre) async {
+    final produit = await _databaseHelper.getProduitByCodeBarre(codeBarre);
+    print('Scanned barcode: $codeBarre');
+    if (produit != null) {
+      print('Produit trouvé: ${produit.nom}');
+      addToCart(produit);
+      return true; // Succès
+    } else {
+      print('Produit avec le code-barres "$codeBarre" non trouvé.');
+      return false; // Échec
+    }
+  }
 
   void addToCart(Produit produit) {
-    if (produit.codeBarre == null) return;
-
     if (_cartItems.containsKey(produit.codeBarre)) {
-      final existingProduct = _cartItems[produit.codeBarre]!;
-      _cartItems[produit.codeBarre!] =
-          existingProduct.copyWith(quantite: existingProduct.quantite + 1);
+      _cartItems[produit.codeBarre]!.quantite++;
     } else {
-      _cartItems[produit.codeBarre!] = produit.copyWith(quantite: 1);
+      produit.quantite = 1;
+      _cartItems[produit.codeBarre!] = produit;
     }
     notifyListeners();
   }
 
-  void removeFromCart(Produit produit) {
-    if (produit.codeBarre == null) return;
-
-    if (_cartItems.containsKey(produit.codeBarre)) {
-      final existingProduct = _cartItems[produit.codeBarre]!;
-      if (existingProduct.quantite > 1) {
-        _cartItems[produit.codeBarre!] =
-            existingProduct.copyWith(quantite: existingProduct.quantite - 1);
-      } else {
-        _cartItems.remove(produit.codeBarre);
-      }
-    }
-    notifyListeners();
-  }
-
-  void removeAllFromCart(Produit produit) {
-    if (produit.codeBarre == null) return;
-    _cartItems.remove(produit.codeBarre);
-    notifyListeners();
-  }
-
-  double get subtotal {
-    return _cartItems.values
-        .fold(0, (total, current) => total + (current.prix * current.quantite));
-  }
-
-  double get discountAmount {
-    if (_selectedClient != null) {
-      return subtotal * 0.05;
-    }
-    return 0.0;
-  }
-
-  double get totalPrice {
-    return subtotal - discountAmount;
-  }
-
-  Future<void> addProductByBarcode(String codeBarre) async {
-    final produit = await _dbHelper.getProduitByCodeBarre(codeBarre);
-    if (produit != null) {
-      addToCart(produit);
-    }
-  }
-
-  void updateProductQuantity(String codeBarre, int nouvelleQuantite) {
-    if (cartItems.containsKey(codeBarre)) {
-      final existingProduct = cartItems[codeBarre]!;
-      existingProduct.quantite = nouvelleQuantite;
-      cartItems[codeBarre] = existingProduct;
+  void updateProductQuantity(String codeBarre, int newQuantity) {
+    if (_cartItems.containsKey(codeBarre)) {
+      _cartItems[codeBarre]!.quantite = newQuantity;
       notifyListeners();
     }
   }
 
   void removeProductFromCart(String codeBarre) {
-    if (cartItems.containsKey(codeBarre)) {
-      cartItems.remove(codeBarre);
-      notifyListeners();
-    }
+    _cartItems.remove(codeBarre);
+    notifyListeners();
   }
 
-  // Nouvelle méthode pour valider le CIN et sélectionner le client
   Future<void> selectClientByCin(String cin) async {
-    _selectedClient = await _dbHelper.getClientByCin(cin);
+    _selectedClient = await _databaseHelper.getClientByCin(cin);
     notifyListeners();
   }
 

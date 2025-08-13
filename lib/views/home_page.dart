@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:my_desktop_app/models/sub_category.dart';
 import 'package:provider/provider.dart';
-import '../models/category.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../widgets/produit_card.dart';
