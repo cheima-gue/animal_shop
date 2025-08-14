@@ -90,8 +90,14 @@ class DatabaseHelper {
             }
             if (oldVersion < 4) {
               // Ajoute la nouvelle colonne 'loyaltyPoints' si la version est inférieure à 4
-              await db.execute(
-                  'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
+              // Cela est fait au cas où la table existerait déjà sans cette colonne
+              final columns = await db.rawQuery('PRAGMA table_info(clients)');
+              final hasLoyaltyPoints =
+                  columns.any((column) => column['name'] == 'loyaltyPoints');
+              if (!hasLoyaltyPoints) {
+                await db.execute(
+                    'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
+              }
             }
           },
           onConfigure: (db) async {
@@ -208,8 +214,8 @@ class DatabaseHelper {
     );
   }
 
-  // Méthode pour mettre à jour les points de fidélité du client
-  Future<void> updateClientLoyaltyPoints(Client client) async {
+  // Méthode pour mettre à jour les informations d'un client
+  Future<void> updateClient(Client client) async {
     final db = await database;
     await db.update(
       'clients',
@@ -218,6 +224,15 @@ class DatabaseHelper {
       whereArgs: [client.id],
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // --- MÉTHODE MANQUANTE : getClients() ---
+  Future<List<Client>> getClients() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('clients');
+    return List.generate(maps.length, (i) {
+      return Client.fromMap(maps[i]);
+    });
   }
 
   // Nouvelle méthode pour rechercher par numéro de téléphone

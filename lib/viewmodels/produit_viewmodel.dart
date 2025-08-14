@@ -2,11 +2,11 @@
 
 import 'package:flutter/material.dart';
 import '../models/produit.dart';
-import '../models/client.dart';
 import '../services/database_helper.dart';
+import '../models/client.dart';
 
 class ProduitViewModel extends ChangeNotifier {
-  final DatabaseHelper _databaseHelper = DatabaseHelper();
+  final DatabaseHelper _dbHelper = DatabaseHelper();
   List<Produit> _produits = [];
   Map<String, Produit> _cartItems = {};
   Client? _selectedClient;
@@ -15,77 +15,56 @@ class ProduitViewModel extends ChangeNotifier {
   Map<String, Produit> get cartItems => _cartItems;
   Client? get selectedClient => _selectedClient;
 
-  double get subtotal => _cartItems.values
-      .fold(0.0, (sum, item) => sum + (item.prix * item.quantite));
-
-  // Remplacer la réduction par le système de points de fidélité
-  double get loyaltyPointsEarned {
-    if (_selectedClient != null) {
-      // 50 millimes par dinar, soit 0.05 dinar par dinar
-      return subtotal * 0.05;
-    }
-    return 0.0;
+  ProduitViewModel() {
+    fetchProduits();
   }
 
-  // Le prix total est maintenant le sous-total, sans réduction
-  double get totalPrice => subtotal;
-
+  // Méthodes pour la gestion des produits
   Future<void> fetchProduits() async {
-    _produits = await _databaseHelper.getProduits();
+    _produits = await _dbHelper.getProduits();
     notifyListeners();
   }
 
-  Future<void> deleteProduit(int id) async {
-    await _databaseHelper.deleteProduit(id);
-    await fetchProduits();
-  }
-
   Future<void> addProduit(Produit produit) async {
-    await _databaseHelper.insertProduit(produit);
+    await _dbHelper.insertProduit(produit);
     await fetchProduits();
   }
 
   Future<void> updateProduit(Produit produit) async {
-    await _databaseHelper.updateProduit(produit);
+    await _dbHelper.updateProduit(produit);
     await fetchProduits();
   }
 
-  void addToCart(Produit produit) {
-    if (_cartItems.containsKey(produit.codeBarre)) {
-      _cartItems[produit.codeBarre]!.quantite++;
-    } else {
-      produit.quantite = 1;
-      _cartItems[produit.codeBarre!] = produit;
-    }
-    notifyListeners();
+  Future<void> deleteProduit(int id) async {
+    await _dbHelper.deleteProduit(id);
+    await fetchProduits();
   }
 
-  Future<bool> addProductByBarcode(String barcode) async {
-    final produit = await _databaseHelper.getProduitByCodeBarre(barcode);
+  // Méthodes pour la gestion du panier (caisse)
+  Future<bool> addProductByBarcode(String codeBarre) async {
+    Produit? produit = await _dbHelper.getProduitByCodeBarre(codeBarre);
     if (produit != null) {
-      if (_cartItems.containsKey(produit.codeBarre)) {
-        _cartItems[produit.codeBarre]!.quantite++;
-      } else {
-        produit.quantite = 1;
-        _cartItems[produit.codeBarre!] = produit;
-      }
-      notifyListeners();
+      // Utilisez la nouvelle méthode pour ajouter au panier
+      addToCart(produit);
       return true;
     }
     return false;
   }
 
-  void removeProductFromCart(String codeBarre) {
-    if (_cartItems.containsKey(codeBarre)) {
-      _cartItems.remove(codeBarre);
-      notifyListeners();
+  void addToCart(Produit produit) {
+    if (_cartItems.containsKey(produit.codeBarre)) {
+      _cartItems[produit.codeBarre]!.quantite += 1;
+    } else {
+      // Crée une copie du produit pour l'ajouter au panier avec une quantité de 1
+      _cartItems[produit.codeBarre!] = produit.copyWith(quantite: 1);
     }
+    notifyListeners();
   }
 
-  void updateProductQuantity(String codeBarre, int quantity) {
+  void updateProductQuantity(String codeBarre, int newQuantity) {
     if (_cartItems.containsKey(codeBarre)) {
-      if (quantity > 0) {
-        _cartItems[codeBarre]!.quantite = quantity;
+      if (newQuantity > 0) {
+        _cartItems[codeBarre]!.quantite = newQuantity;
       } else {
         _cartItems.remove(codeBarre);
       }
@@ -93,8 +72,20 @@ class ProduitViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> selectClientByTel(String tel) async {
-    _selectedClient = await _databaseHelper.getClientByTel(tel);
+  void removeProductFromCart(String codeBarre) {
+    _cartItems.remove(codeBarre);
+    notifyListeners();
+  }
+
+  void clearCart() {
+    _cartItems.clear();
+    _selectedClient = null;
+    notifyListeners();
+  }
+
+  // Méthodes pour la gestion des clients dans la caisse
+  void selectClient(Client client) {
+    _selectedClient = client;
     notifyListeners();
   }
 
@@ -103,15 +94,33 @@ class ProduitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Nouvelle méthode pour finaliser la commande et mettre à jour les points de fidélité
+  // Calculs pour la caisse
+  double get subtotal {
+    return _cartItems.values
+        .fold(0.0, (sum, item) => sum + (item.prix * item.quantite));
+  }
+
+  double get totalPrice {
+    return subtotal;
+  }
+
+  double get loyaltyPointsEarned {
+    if (_selectedClient == null) {
+      return 0.0;
+    }
+    // Exemple : 10% du sous-total en points de fidélité
+    return subtotal * 0.1;
+  }
+
   Future<void> finalizeOrder() async {
     if (_selectedClient != null) {
-      final pointsEarned = loyaltyPointsEarned;
-      _selectedClient!.loyaltyPoints += pointsEarned;
-      await _databaseHelper.updateClientLoyaltyPoints(_selectedClient!);
+      final pointsGagnes = loyaltyPointsEarned;
+      _selectedClient!.loyaltyPoints += pointsGagnes;
+      await _dbHelper.updateClient(_selectedClient!);
     }
-    _cartItems.clear();
-    resetClient();
+
+    // Réinitialisation du panier et du client
+    clearCart();
     notifyListeners();
   }
 }

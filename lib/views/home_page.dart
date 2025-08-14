@@ -11,7 +11,7 @@ import 'produit_home_page.dart';
 import 'category_management_page.dart';
 import 'produit_list_page.dart';
 import 'caisse_page.dart';
-import 'client_management_page.dart'; // Importez la nouvelle page
+import 'client_management_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,13 +23,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  // L'erreur vient du fait que _HomePageContent est une classe de widget, pas une méthode de _HomePageState
   final List<Widget> _pages = [
-    _HomePageContent(), // Appelez la classe du widget ici
+    const _HomePageContent(), // Correct : instanciation avec 'const'
     const ProduitHomePage(),
     const CategoryManagementPage(),
     const CaissePage(),
-    const ClientManagementPage(), // Ajoutez la nouvelle page ici
+    const ClientManagementPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -75,7 +74,6 @@ class _HomePageState extends State<HomePage> {
             label: 'Caisse',
           ),
           BottomNavigationBarItem(
-            // Nouvel onglet pour les clients
             icon: Icon(Icons.group),
             label: 'Clients',
           ),
@@ -89,8 +87,9 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// Le reste de la classe _HomePageContent reste inchangé.
 class _HomePageContent extends StatelessWidget {
+  const _HomePageContent({super.key}); // Ajout d'un constructeur avec une clé
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(

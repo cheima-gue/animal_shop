@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/produit.dart';
 import '../viewmodels/produit_viewmodel.dart';
+import '../viewmodels/client_viewmodel.dart';
 import '../models/client.dart';
 
 class CaissePage extends StatefulWidget {
@@ -18,17 +19,21 @@ class CaissePage extends StatefulWidget {
 class _CaissePageState extends State<CaissePage> {
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _montantRecuController = TextEditingController();
-  final TextEditingController _telController = TextEditingController();
+  final TextEditingController _clientSearchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   double _montantRecu = 0.0;
   double _monnaieARendre = 0.0;
-  String _telValidationMessage = '';
   bool _isLoyalCustomer = false;
 
   @override
   void initState() {
     super.initState();
     _montantRecuController.addListener(_calculerMonnaie);
+    // Charger la liste des clients dès le début
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ClientViewModel>(context, listen: false).fetchClients();
+    });
   }
 
   @override
@@ -36,7 +41,8 @@ class _CaissePageState extends State<CaissePage> {
     _barcodeController.dispose();
     _montantRecuController.removeListener(_calculerMonnaie);
     _montantRecuController.dispose();
-    _telController.dispose();
+    _clientSearchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -86,9 +92,7 @@ class _CaissePageState extends State<CaissePage> {
             keyboardType: TextInputType.number,
             autofocus: true,
             decoration: const InputDecoration(labelText: 'Nouvelle quantité'),
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
           actions: <Widget>[
             TextButton(
@@ -119,32 +123,6 @@ class _CaissePageState extends State<CaissePage> {
     );
   }
 
-  void _validateTel(String tel) async {
-    final produitViewModel =
-        Provider.of<ProduitViewModel>(context, listen: false);
-    if (tel.isEmpty) {
-      produitViewModel.resetClient();
-      setState(() {
-        _telValidationMessage = '';
-      });
-      return;
-    }
-
-    await produitViewModel.selectClientByTel(tel);
-
-    if (produitViewModel.selectedClient != null) {
-      setState(() {
-        _telValidationMessage =
-            'Client: ${produitViewModel.selectedClient!.firstName} ${produitViewModel.selectedClient!.lastName}';
-      });
-    } else {
-      setState(() {
-        _telValidationMessage = 'Numéro de téléphone non trouvé.';
-      });
-    }
-  }
-
-  // Ajout d'une méthode pour construire le ticket de caisse
   Widget _buildTicketDeCaisse(ProduitViewModel produitViewModel) {
     final cartItems = produitViewModel.cartItems.values.toList();
     return Column(
@@ -258,12 +236,10 @@ class _CaissePageState extends State<CaissePage> {
           onPressed: () {
             produitViewModel.finalizeOrder();
             _montantRecuController.clear();
-            _telController.clear();
             setState(() {
               _montantRecu = 0.0;
               _monnaieARendre = 0.0;
               _isLoyalCustomer = false;
-              _telValidationMessage = '';
             });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -282,103 +258,90 @@ class _CaissePageState extends State<CaissePage> {
     );
   }
 
-  // Ajout d'une méthode pour le panneau de gauche (Produits et clients)
-  Widget _buildLeftPanel(ProduitViewModel produitViewModel) {
+  // Nouveau panneau pour la gestion des clients
+  Widget _buildClientPanel(
+      ClientViewModel clientViewModel, ProduitViewModel produitViewModel) {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.all(8.0),
           child: TextField(
-            controller: _barcodeController,
-            autofocus: true,
+            controller: _clientSearchController,
             decoration: const InputDecoration(
-              labelText: 'Scanner ou saisir le code-barres',
-              suffixIcon: Icon(Icons.qr_code_scanner),
+              labelText: 'Rechercher un client',
+              suffixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
-            onSubmitted: _processBarcode,
+            onChanged: (query) {
+              clientViewModel.searchClients(query);
+            },
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Type de client:',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      title: const Text('Passager'),
-                      value: false,
-                      groupValue: _isLoyalCustomer,
-                      onChanged: (bool? value) {
-                        if (value != null && !value) {
-                          setState(() {
-                            _isLoyalCustomer = false;
-                            _telValidationMessage = '';
-                            _telController.clear();
-                          });
-                          produitViewModel.resetClient();
-                        }
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: RadioListTile<bool>(
-                      title: const Text('Client'),
-                      value: true,
-                      groupValue: _isLoyalCustomer,
-                      onChanged: (bool? value) {
-                        if (value != null && value) {
-                          setState(() {
-                            _isLoyalCustomer = true;
-                          });
-                          FocusScope.of(context).requestFocus();
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              if (_isLoyalCustomer)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: TextField(
-                    controller: _telController,
-                    keyboardType: TextInputType.phone,
-                    autofocus: _isLoyalCustomer,
-                    decoration: InputDecoration(
-                      labelText: 'Numéro de carte de fidélité',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.search),
-                        onPressed: () {
-                          _validateTel(_telController.text);
-                        },
-                      ),
-                    ),
-                    onSubmitted: _validateTel,
-                  ),
-                ),
-              if (_telValidationMessage.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    _telValidationMessage,
-                    style: TextStyle(
-                      color: produitViewModel.selectedClient != null
-                          ? Colors.green
-                          : Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+        if (produitViewModel.selectedClient != null)
+          _buildSelectedClientDetails(produitViewModel),
+        const Divider(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: clientViewModel.filteredClients.length,
+            itemBuilder: (context, index) {
+              final client = clientViewModel.filteredClients[index];
+              return ListTile(
+                title: Text('${client.firstName} ${client.lastName}'),
+                subtitle: Text('Tél: ${client.tel}'),
+                trailing:
+                    Text('${client.loyaltyPoints.toStringAsFixed(2)} pts'),
+                onTap: () {
+                  produitViewModel.selectClient(client);
+                },
+                selected: produitViewModel.selectedClient?.id == client.id,
+                selectedTileColor: Colors.teal.withOpacity(0.1),
+              );
+            },
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSelectedClientDetails(ProduitViewModel produitViewModel) {
+    final client = produitViewModel.selectedClient!;
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blueGrey),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Client sélectionné:',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${client.firstName} ${client.lastName}',
+            style: const TextStyle(fontSize: 16),
+          ),
+          Text(
+            'Tél: ${client.tel}',
+            style: const TextStyle(fontSize: 16),
+          ),
+          Text(
+            'Points de fidélité: ${client.loyaltyPoints.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -389,28 +352,97 @@ class _CaissePageState extends State<CaissePage> {
         title: const Text('Caisse Enregistreuse'),
         backgroundColor: Theme.of(context).primaryColor,
       ),
-      body: Consumer<ProduitViewModel>(
-        builder: (context, produitViewModel, child) {
-          return Row(
-            children: [
-              // Panneau de gauche pour les produits et la recherche
-              Expanded(
-                flex: 1, // Prend la moitié de l'écran
-                child: _buildLeftPanel(produitViewModel),
-              ),
-              // Ligne de séparation
-              const VerticalDivider(width: 1),
-              // Panneau de droite pour le ticket de caisse et le paiement
-              Expanded(
-                flex: 1, // Prend l'autre moitié de l'écran
-                child: Padding(
+      body: Row(
+        children: [
+          // Panneau de gauche: Produits et clients
+          Expanded(
+            flex: 1,
+            child: Consumer2<ProduitViewModel, ClientViewModel>(
+              builder: (context, produitViewModel, clientViewModel, child) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: TextField(
+                        controller: _barcodeController,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Scanner ou saisir le code-barres',
+                          suffixIcon: Icon(Icons.qr_code_scanner),
+                          border: OutlineInputBorder(),
+                        ),
+                        onSubmitted: _processBarcode,
+                      ),
+                    ),
+                    const Divider(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<bool>(
+                            title: const Text('Passager'),
+                            value: false,
+                            groupValue: _isLoyalCustomer,
+                            onChanged: (bool? value) {
+                              if (value != null && !value) {
+                                setState(() {
+                                  _isLoyalCustomer = false;
+                                  _clientSearchController.clear();
+                                  produitViewModel.resetClient();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<bool>(
+                            title: const Text('Client'),
+                            value: true,
+                            groupValue: _isLoyalCustomer,
+                            onChanged: (bool? value) {
+                              if (value != null && value) {
+                                setState(() {
+                                  _isLoyalCustomer = true;
+                                  clientViewModel.fetchClients();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_isLoyalCustomer)
+                      Expanded(
+                        child: _buildClientPanel(
+                            clientViewModel, produitViewModel),
+                      )
+                    else
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Ajouter des produits pour un client passager.',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          // Panneau de droite: Ticket de caisse
+          Expanded(
+            flex: 1,
+            child: Consumer<ProduitViewModel>(
+              builder: (context, produitViewModel, child) {
+                return Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: _buildTicketDeCaisse(produitViewModel),
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
