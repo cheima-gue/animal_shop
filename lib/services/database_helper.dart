@@ -5,7 +5,7 @@ import 'package:path/path.dart';
 import '../models/produit.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
-import '../models/client.dart'; // Importez le nouveau modèle Client
+import '../models/client.dart';
 
 class DatabaseHelper {
   static Database? _database;
@@ -32,7 +32,8 @@ class DatabaseHelper {
 
     return await databaseFactory.openDatabase(path,
         options: OpenDatabaseOptions(
-          version: 2, // Incrémentez la version de la base de données
+          version:
+              4, // Incrément de la version pour le système de points de fidélité
           onCreate: (db, version) async {
             await db.execute('''
               CREATE TABLE categories(
@@ -62,27 +63,35 @@ class DatabaseHelper {
               )
             ''');
 
-            // Créez la nouvelle table pour les clients
+            // Mise à jour de la table clients avec 'tel' ET 'loyaltyPoints'
             await db.execute('''
               CREATE TABLE clients(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 firstName TEXT,
                 lastName TEXT,
-                cin TEXT UNIQUE
+                tel TEXT UNIQUE,
+                loyaltyPoints REAL NOT NULL DEFAULT 0.0
               )
             ''');
           },
           onUpgrade: (db, oldVersion, newVersion) async {
-            if (oldVersion < 2) {
-              // Ajoutez la nouvelle table si la version est inférieure à 2
+            if (oldVersion < 3) {
+              await db.execute(
+                  'DROP TABLE IF EXISTS clients'); // Supprime l'ancienne table si la version est inférieure à 3
               await db.execute('''
                 CREATE TABLE clients(
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   firstName TEXT,
                   lastName TEXT,
-                  cin TEXT UNIQUE
+                  tel TEXT UNIQUE,
+                  loyaltyPoints REAL NOT NULL DEFAULT 0.0
                 )
               ''');
+            }
+            if (oldVersion < 4) {
+              // Ajoute la nouvelle colonne 'loyaltyPoints' si la version est inférieure à 4
+              await db.execute(
+                  'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
             }
           },
           onConfigure: (db) async {
@@ -129,7 +138,6 @@ class DatabaseHelper {
     return await db.delete('produits', where: 'id = ?', whereArgs: [id]);
   }
 
-  // NOUVELLE MÉTHODE POUR LA CAISSE
   Future<Produit?> getProduitByCodeBarre(String codeBarre) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -200,12 +208,25 @@ class DatabaseHelper {
     );
   }
 
-  Future<Client?> getClientByCin(String cin) async {
+  // Méthode pour mettre à jour les points de fidélité du client
+  Future<void> updateClientLoyaltyPoints(Client client) async {
+    final db = await database;
+    await db.update(
+      'clients',
+      client.toMap(),
+      where: 'id = ?',
+      whereArgs: [client.id],
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // Nouvelle méthode pour rechercher par numéro de téléphone
+  Future<Client?> getClientByTel(String tel) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       'clients',
-      where: 'cin = ?',
-      whereArgs: [cin],
+      where: 'tel = ?',
+      whereArgs: [tel],
     );
     if (maps.isNotEmpty) {
       return Client.fromMap(maps.first);

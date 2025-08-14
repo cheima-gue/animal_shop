@@ -4,13 +4,15 @@ class Client {
   int? id;
   String firstName;
   String lastName;
-  String cin;
+  String tel;
+  double loyaltyPoints; // Champ ajouté
 
   Client({
     this.id,
     required this.firstName,
     required this.lastName,
-    required this.cin,
+    required this.tel,
+    this.loyaltyPoints = 0.0, // Initialisé à 0 par défaut
   });
 
   Map<String, dynamic> toMap() {
@@ -18,16 +20,19 @@ class Client {
       'id': id,
       'firstName': firstName,
       'lastName': lastName,
-      'cin': cin,
+      'tel': tel,
+      'loyaltyPoints': loyaltyPoints, // Ajouté à la méthode toMap
     };
   }
 
-  factory Client.fromMap(Map<String, dynamic> map) {
+  static Client fromMap(Map<String, dynamic> map) {
     return Client(
       id: map['id'],
       firstName: map['firstName'],
       lastName: map['lastName'],
-      cin: map['cin'],
+      tel: map['tel'],
+      // Utilisation de '?? 0.0' pour gérer les anciennes bases de données sans cette colonne
+      loyaltyPoints: map['loyaltyPoints'] ?? 0.0,
     );
   }
 }

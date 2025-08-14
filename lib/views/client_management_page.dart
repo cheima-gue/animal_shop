@@ -16,16 +16,24 @@ class _ClientManagementPageState extends State<ClientManagementPage> {
   final _dbHelper = DatabaseHelper();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
-  final _cinController = TextEditingController();
+  final _telController =
+      TextEditingController(); // Utilisation du contrôleur pour le numéro de téléphone
 
   void _addClient() async {
     if (_formKey.currentState!.validate()) {
       final newClient = Client(
         firstName: _firstNameController.text,
         lastName: _lastNameController.text,
-        cin: _cinController.text,
+        tel: _telController.text, // Passage du numéro de téléphone
+        loyaltyPoints:
+            0.0, // Initialise les points de fidélité à 0 pour un nouveau client
       );
       await _dbHelper.insertClient(newClient);
+
+      // Rafraîchir la liste des clients ou notifier un changement si cette page liste les clients
+      // (Si vous avez une liste de clients à afficher sur cette page)
+      // Par exemple, si vous avez un ClientViewModel
+      // Provider.of<ClientViewModel>(context, listen: false).fetchClients();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Client ajouté avec succès!')),
@@ -33,7 +41,7 @@ class _ClientManagementPageState extends State<ClientManagementPage> {
 
       _firstNameController.clear();
       _lastNameController.clear();
-      _cinController.clear();
+      _telController.clear(); // Nettoyage du contrôleur de téléphone
     }
   }
 
@@ -41,7 +49,7 @@ class _ClientManagementPageState extends State<ClientManagementPage> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _cinController.dispose();
+    _telController.dispose(); // Libération du contrôleur de téléphone
     super.dispose();
   }
 
@@ -79,12 +87,16 @@ class _ClientManagementPageState extends State<ClientManagementPage> {
                 },
               ),
               TextFormField(
-                controller: _cinController,
-                decoration: const InputDecoration(labelText: 'Numéro de CIN'),
+                controller: _telController, // Changement ici
+                decoration: const InputDecoration(
+                    labelText: 'Numéro de téléphone'), // Changement du label
+                keyboardType:
+                    TextInputType.phone, // Changement du type de clavier
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer un numéro de CIN';
+                    return 'Veuillez entrer un numéro de téléphone';
                   }
+                  // Vous pouvez ajouter une validation de format de téléphone ici si nécessaire
                   return null;
                 },
               ),
@@ -93,6 +105,9 @@ class _ClientManagementPageState extends State<ClientManagementPage> {
                 onPressed: _addClient,
                 child: const Text('Ajouter le client'),
               ),
+              // Si vous souhaitez afficher la liste des clients sur cette page, vous devriez
+              // ajouter un Consumer<ClientViewModel> ici et un ListView.builder.
+              // Actuellement, cette page sert uniquement à l'ajout.
             ],
           ),
         ),
