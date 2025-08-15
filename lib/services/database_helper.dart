@@ -29,41 +29,56 @@ class DatabaseHelper {
   Future<Database> initDatabase() async {
     final dbPath = await databaseFactory.getDatabasesPath();
     final path = join(dbPath, 'product_app.db');
+    print('Database path: $path');
 
-    return await databaseFactory.openDatabase(path,
-        options: OpenDatabaseOptions(
-          version:
-              4, // Incrément de la version pour le système de points de fidélité
-          onCreate: (db, version) async {
-            await db.execute('''
-              CREATE TABLE categories(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nom TEXT NOT NULL UNIQUE
-              )
-            ''');
+    return await databaseFactory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 5, // Incrément de la version pour le stock
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE categories(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nom TEXT NOT NULL UNIQUE
+            )
+          ''');
 
-            await db.execute('''
-              CREATE TABLE sub_categories(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nom TEXT NOT NULL,
-                categoryId INTEGER NOT NULL,
-                FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE
-              )
-            ''');
+          await db.execute('''
+            CREATE TABLE sub_categories(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nom TEXT NOT NULL,
+              categoryId INTEGER NOT NULL,
+              FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE
+            )
+          ''');
 
-            await db.execute('''
-              CREATE TABLE produits(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nom TEXT NOT NULL,
-                prix REAL NOT NULL,
-                image TEXT,
-                codeBarre TEXT UNIQUE NOT NULL,
-                subCategoryId INTEGER NOT NULL,
-                FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
-              )
-            ''');
+          // Correction: Changed 'stock' to 'quantiteEnStock' to match the model
+          await db.execute('''
+            CREATE TABLE produits(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nom TEXT NOT NULL,
+              prix REAL NOT NULL,
+              image TEXT,
+              codeBarre TEXT UNIQUE NOT NULL,
+              subCategoryId INTEGER,
+              quantiteEnStock INTEGER NOT NULL DEFAULT 0, -- Corrected column name
+              FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
+            )
+          ''');
 
-            // Mise à jour de la table clients avec 'tel' ET 'loyaltyPoints'
+          await db.execute('''
+            CREATE TABLE clients(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              firstName TEXT,
+              lastName TEXT,
+              tel TEXT UNIQUE,
+              loyaltyPoints REAL NOT NULL DEFAULT 0.0
+            )
+          ''');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 3) {
+            await db.execute('DROP TABLE IF EXISTS clients');
             await db.execute('''
               CREATE TABLE clients(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,37 +88,32 @@ class DatabaseHelper {
                 loyaltyPoints REAL NOT NULL DEFAULT 0.0
               )
             ''');
-          },
-          onUpgrade: (db, oldVersion, newVersion) async {
-            if (oldVersion < 3) {
+          }
+          if (oldVersion < 4) {
+            final columns = await db.rawQuery('PRAGMA table_info(clients)');
+            final hasLoyaltyPoints =
+                columns.any((column) => column['name'] == 'loyaltyPoints');
+            if (!hasLoyaltyPoints) {
               await db.execute(
-                  'DROP TABLE IF EXISTS clients'); // Supprime l'ancienne table si la version est inférieure à 3
-              await db.execute('''
-                CREATE TABLE clients(
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  firstName TEXT,
-                  lastName TEXT,
-                  tel TEXT UNIQUE,
-                  loyaltyPoints REAL NOT NULL DEFAULT 0.0
-                )
-              ''');
+                  'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
             }
-            if (oldVersion < 4) {
-              // Ajoute la nouvelle colonne 'loyaltyPoints' si la version est inférieure à 4
-              // Cela est fait au cas où la table existerait déjà sans cette colonne
-              final columns = await db.rawQuery('PRAGMA table_info(clients)');
-              final hasLoyaltyPoints =
-                  columns.any((column) => column['name'] == 'loyaltyPoints');
-              if (!hasLoyaltyPoints) {
-                await db.execute(
-                    'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
-              }
+          }
+          if (oldVersion < 5) {
+            // Correction: Ajout de la colonne 'quantiteEnStock'
+            final columns = await db.rawQuery('PRAGMA table_info(produits)');
+            final hasQuantiteEnStock =
+                columns.any((column) => column['name'] == 'quantiteEnStock');
+            if (!hasQuantiteEnStock) {
+              await db.execute(
+                  'ALTER TABLE produits ADD COLUMN quantiteEnStock INTEGER NOT NULL DEFAULT 0');
             }
-          },
-          onConfigure: (db) async {
-            await db.execute('PRAGMA foreign_keys = ON');
-          },
-        ));
+          }
+        },
+        onConfigure: (db) async {
+          await db.execute('PRAGMA foreign_keys = ON');
+        },
+      ),
+    );
   }
 
   // ---------------- PRODUITS ----------------
@@ -214,7 +224,6 @@ class DatabaseHelper {
     );
   }
 
-  // Méthode pour mettre à jour les informations d'un client
   Future<void> updateClient(Client client) async {
     final db = await database;
     await db.update(
@@ -226,7 +235,6 @@ class DatabaseHelper {
     );
   }
 
-  // --- MÉTHODE MANQUANTE : getClients() ---
   Future<List<Client>> getClients() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('clients');
@@ -235,7 +243,6 @@ class DatabaseHelper {
     });
   }
 
-  // Nouvelle méthode pour rechercher par numéro de téléphone
   Future<Client?> getClientByTel(String tel) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(

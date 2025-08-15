@@ -1,13 +1,15 @@
 // lib/models/produit.dart
 
+import 'package:flutter/foundation.dart';
+
 class Produit {
-  int? id;
-  String nom;
-  double prix;
-  String? image;
-  String codeBarre;
-  int subCategoryId;
-  int quantite; // <-- AJOUTEZ CETTE LIGNE
+  final int? id;
+  final String nom;
+  final double prix;
+  final String? image;
+  final String codeBarre;
+  final int? subCategoryId; // Made nullable
+  int quantiteEnStock; // Made mutable (not final)
 
   Produit({
     this.id,
@@ -15,20 +17,9 @@ class Produit {
     required this.prix,
     this.image,
     required this.codeBarre,
-    required this.subCategoryId,
-    this.quantite = 0, // Initialisation de la quantité à 0 par défaut
+    this.subCategoryId,
+    required this.quantiteEnStock,
   });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'nom': nom,
-      'prix': prix,
-      'image': image,
-      'codeBarre': codeBarre,
-      'subCategoryId': subCategoryId,
-    };
-  }
 
   factory Produit.fromMap(Map<String, dynamic> map) {
     return Produit(
@@ -38,13 +29,23 @@ class Produit {
       image: map['image'],
       codeBarre: map['codeBarre'],
       subCategoryId: map['subCategoryId'],
-      quantite: map.containsKey('quantite')
-          ? map['quantite']
-          : 0, // Gérer la quantité lors de la lecture de la base de données
+      quantiteEnStock: map['quantiteEnStock'],
     );
   }
 
-  // Ajout de la méthode pour créer une copie
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nom': nom,
+      'prix': prix,
+      'image': image,
+      'codeBarre': codeBarre,
+      'subCategoryId': subCategoryId,
+      'quantiteEnStock': quantiteEnStock,
+    };
+  }
+
+  // ADDED: The copyWith method
   Produit copyWith({
     int? id,
     String? nom,
@@ -52,7 +53,7 @@ class Produit {
     String? image,
     String? codeBarre,
     int? subCategoryId,
-    int? quantite,
+    int? quantiteEnStock,
   }) {
     return Produit(
       id: id ?? this.id,
@@ -61,7 +62,7 @@ class Produit {
       image: image ?? this.image,
       codeBarre: codeBarre ?? this.codeBarre,
       subCategoryId: subCategoryId ?? this.subCategoryId,
-      quantite: quantite ?? this.quantite,
+      quantiteEnStock: quantiteEnStock ?? this.quantiteEnStock,
     );
   }
 }

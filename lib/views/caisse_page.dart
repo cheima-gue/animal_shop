@@ -30,7 +30,6 @@ class _CaissePageState extends State<CaissePage> {
   void initState() {
     super.initState();
     _montantRecuController.addListener(_calculerMonnaie);
-    // Charger la liste des clients dès le début
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ClientViewModel>(context, listen: false).fetchClients();
     });
@@ -46,6 +45,7 @@ class _CaissePageState extends State<CaissePage> {
     super.dispose();
   }
 
+  // Modification de la méthode _processBarcode pour gérer le stock
   void _processBarcode(String barcode) async {
     if (barcode.isNotEmpty) {
       bool success = await Provider.of<ProduitViewModel>(context, listen: false)
@@ -54,9 +54,33 @@ class _CaissePageState extends State<CaissePage> {
       FocusScope.of(context).requestFocus();
 
       if (!success) {
+        final produitViewModel =
+            Provider.of<ProduitViewModel>(context, listen: false);
+        final produit =
+            produitViewModel.produits.firstWhere((p) => p.codeBarre == barcode,
+                // Création d'une instance Produit valide
+                orElse: () => Produit(
+                    nom: '',
+                    codeBarre: '',
+                    prix: 0,
+                    subCategoryId: 0, // Ajout du champ manquant
+                    quantiteEnStock: 0));
+
+        String message;
+        if (produit.nom.isNotEmpty) {
+          if (produit.quantiteEnStock <= 0) {
+            // Utilisation de quantiteEnStock
+            message = 'Le produit "${produit.nom}" est en rupture de stock.';
+          } else {
+            message = 'Stock insuffisant pour le produit "${produit.nom}".';
+          }
+        } else {
+          message = 'Produit avec le code-barres "$barcode" non trouvé.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Produit avec le code-barres "$barcode" non trouvé.'),
+            content: Text(message),
             backgroundColor: Colors.red,
           ),
         );
@@ -78,21 +102,36 @@ class _CaissePageState extends State<CaissePage> {
     });
   }
 
+  // Modification de la boîte de dialogue pour afficher le stock
   Future<void> _showQuantityDialog(Produit produit) async {
-    final TextEditingController quantiteController =
-        TextEditingController(text: produit.quantite.toString());
+    final TextEditingController quantiteController = TextEditingController(
+        text: produit.quantiteEnStock
+            .toString()); // Utilisation de quantiteEnStock
+    final int maxStock = Provider.of<ProduitViewModel>(context, listen: false)
+        .produits
+        .firstWhere((p) => p.id == produit.id)
+        .quantiteEnStock; // Utilisation de l'ID et quantiteEnStock
 
     await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Modifier la quantité de ${produit.nom}'),
-          content: TextField(
-            controller: quantiteController,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Nouvelle quantité'),
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Stock disponible: $maxStock'),
+              const SizedBox(height: 10),
+              TextField(
+                controller: quantiteController,
+                keyboardType: TextInputType.number,
+                autofocus: true,
+                decoration:
+                    const InputDecoration(labelText: 'Nouvelle quantité'),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              ),
+            ],
           ),
           actions: <Widget>[
             TextButton(
@@ -106,15 +145,25 @@ class _CaissePageState extends State<CaissePage> {
               onPressed: () {
                 final nouvelleQuantite =
                     int.tryParse(quantiteController.text) ?? 0;
-                if (nouvelleQuantite > 0) {
+                if (nouvelleQuantite > maxStock) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          'La quantité ne peut pas dépasser le stock disponible ($maxStock).'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                } else if (nouvelleQuantite > 0) {
                   Provider.of<ProduitViewModel>(context, listen: false)
                       .updateProductQuantity(
-                          produit.codeBarre!, nouvelleQuantite);
+                          produit.id!, nouvelleQuantite); // Utilisation de l'ID
+                  Navigator.of(context).pop();
                 } else {
                   Provider.of<ProduitViewModel>(context, listen: false)
-                      .removeProductFromCart(produit.codeBarre!);
+                      .removeProductFromCart(
+                          produit.id!); // Utilisation de l'ID
+                  Navigator.of(context).pop();
                 }
-                Navigator.of(context).pop();
               },
             ),
           ],
@@ -149,13 +198,13 @@ class _CaissePageState extends State<CaissePage> {
                   title: Text(produit.nom,
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(
-                      '${produit.prix.toStringAsFixed(2)} DT x ${produit.quantite}'),
+                      '${produit.prix.toStringAsFixed(2)} DT x ${produit.quantiteEnStock}'), // Utilisation de quantiteEnStock
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
-                      if (produit.codeBarre != null) {
-                        produitViewModel
-                            .removeProductFromCart(produit.codeBarre!);
+                      if (produit.id != null) {
+                        produitViewModel.removeProductFromCart(
+                            produit.id!); // Utilisation de l'ID
                       }
                     },
                   ),
@@ -234,18 +283,33 @@ class _CaissePageState extends State<CaissePage> {
         const SizedBox(height: 16.0),
         ElevatedButton(
           onPressed: () {
-            produitViewModel.finalizeOrder();
-            _montantRecuController.clear();
-            setState(() {
-              _montantRecu = 0.0;
-              _monnaieARendre = 0.0;
-              _isLoyalCustomer = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content:
-                      Text('Paiement effectué! Points de fidélité ajoutés.')),
-            );
+            final produitViewModel =
+                Provider.of<ProduitViewModel>(context, listen: false);
+            final total = produitViewModel.totalPrice;
+
+            if (_montantRecu >= total) {
+              produitViewModel.finalizeOrder();
+              _montantRecuController.clear();
+              setState(() {
+                _montantRecu = 0.0;
+                _monnaieARendre = 0.0;
+                _isLoyalCustomer = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Paiement effectué!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Le montant reçu est insuffisant pour finaliser la commande.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.teal,
@@ -258,7 +322,6 @@ class _CaissePageState extends State<CaissePage> {
     );
   }
 
-  // Nouveau panneau pour la gestion des clients
   Widget _buildClientPanel(
       ClientViewModel clientViewModel, ProduitViewModel produitViewModel) {
     return Column(
@@ -354,7 +417,6 @@ class _CaissePageState extends State<CaissePage> {
       ),
       body: Row(
         children: [
-          // Panneau de gauche: Produits et clients
           Expanded(
             flex: 1,
             child: Consumer2<ProduitViewModel, ClientViewModel>(
@@ -430,7 +492,6 @@ class _CaissePageState extends State<CaissePage> {
             ),
           ),
           const VerticalDivider(width: 1),
-          // Panneau de droite: Ticket de caisse
           Expanded(
             flex: 1,
             child: Consumer<ProduitViewModel>(

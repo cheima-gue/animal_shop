@@ -23,6 +23,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
   final _nomController = TextEditingController();
   final _prixController = TextEditingController();
   final _codeBarreController = TextEditingController();
+  final _quantiteEnStockController = TextEditingController();
   Category? _selectedCategory;
   SubCategory? _selectedSubCategory;
   String? _imagePath;
@@ -48,6 +49,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
     _nomController.dispose();
     _prixController.dispose();
     _codeBarreController.dispose();
+    _quantiteEnStockController.dispose();
     super.dispose();
   }
 
@@ -57,21 +59,28 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _nomController.text = produit.nom;
       _prixController.text = produit.prix.toString();
       _codeBarreController.text = produit.codeBarre;
+      _quantiteEnStockController.text = produit.quantiteEnStock.toString();
       _imagePath = produit.image;
 
       final categoryViewModel =
           Provider.of<CategoryViewModel>(context, listen: false);
-      final subCategory = categoryViewModel.subCategories.firstWhere(
-        (sub) => sub.id == produit.subCategoryId,
-        orElse: () => SubCategory(nom: '', categoryId: -1),
-      );
-      _selectedSubCategory = subCategory.id != -1 ? subCategory : null;
-      _selectedCategory = _selectedSubCategory != null
-          ? categoryViewModel.categories.firstWhere(
-              (cat) => cat.id == _selectedSubCategory!.categoryId,
-              orElse: () => Category(nom: ''),
-            )
-          : null;
+
+      if (produit.subCategoryId != null) {
+        final subCategory = categoryViewModel.subCategories.firstWhere(
+          (sub) => sub.id == produit.subCategoryId,
+          orElse: () => SubCategory(nom: '', categoryId: -1),
+        );
+        _selectedSubCategory = subCategory.id != -1 ? subCategory : null;
+        _selectedCategory = _selectedSubCategory != null
+            ? categoryViewModel.categories.firstWhere(
+                (cat) => cat.id == _selectedSubCategory!.categoryId,
+                orElse: () => Category(nom: ''),
+              )
+            : null;
+      } else {
+        _selectedSubCategory = null;
+        _selectedCategory = null;
+      }
     });
   }
 
@@ -81,6 +90,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _nomController.clear();
       _prixController.clear();
       _codeBarreController.clear();
+      _quantiteEnStockController.clear();
       _selectedCategory = null;
       _selectedSubCategory = null;
       _imagePath = null;
@@ -107,7 +117,8 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
         prix: double.tryParse(_prixController.text) ?? 0.0,
         image: _imagePath,
         codeBarre: _codeBarreController.text,
-        subCategoryId: _selectedSubCategory!.id!,
+        subCategoryId: _selectedSubCategory?.id,
+        quantiteEnStock: int.tryParse(_quantiteEnStockController.text) ?? 0,
       );
 
       try {
@@ -198,7 +209,6 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: SingleChildScrollView(
-        // <--- C'est ici que l'ajout du défilement se fait
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -245,6 +255,22 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Le code-barres est obligatoire';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _quantiteEnStockController,
+                keyboardType: TextInputType.number,
+                decoration:
+                    const InputDecoration(labelText: 'Quantité en Stock'),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'La quantité en stock est obligatoire';
+                  }
+                  if (int.tryParse(value) == null) {
+                    return 'Veuillez entrer un nombre entier valide';
                   }
                   return null;
                 },

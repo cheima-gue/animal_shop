@@ -1,8 +1,8 @@
 // lib/views/home_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:my_desktop_app/models/sub_category.dart';
 import 'package:provider/provider.dart';
+import '../models/sub_category.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../widgets/produit_card.dart';
@@ -24,7 +24,7 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const _HomePageContent(), // Correct : instanciation avec 'const'
+    const _HomePageContent(),
     const ProduitHomePage(),
     const CategoryManagementPage(),
     const CaissePage(),
@@ -88,7 +88,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomePageContent extends StatelessWidget {
-  const _HomePageContent({super.key}); // Ajout d'un constructeur avec une clé
+  const _HomePageContent({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -346,12 +346,24 @@ class _HomePageContent extends StatelessWidget {
                       produit: produit,
                       onEdit: null,
                       onDelete: null,
-                      onAddToCart: (p) {
-                        produitViewModel.addToCart(p);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('${p.nom} a été ajouté au panier')),
-                        );
+                      onAddToCart: (p) async {
+                        final success = await produitViewModel
+                            .addProductByBarcode(p.codeBarre!);
+                        if (success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('${p.nom} a été ajouté au panier')),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content:
+                                  Text('Stock insuffisant pour ce produit.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       },
                     );
                   },

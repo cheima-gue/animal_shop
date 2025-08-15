@@ -8,11 +8,11 @@ import '../models/client.dart';
 class ProduitViewModel extends ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   List<Produit> _produits = [];
-  Map<String, Produit> _cartItems = {};
+  Map<int, Produit> _cartItems = {};
   Client? _selectedClient;
 
   List<Produit> get produits => _produits;
-  Map<String, Produit> get cartItems => _cartItems;
+  Map<int, Produit> get cartItems => _cartItems;
   Client? get selectedClient => _selectedClient;
 
   ProduitViewModel() {
@@ -43,37 +43,50 @@ class ProduitViewModel extends ChangeNotifier {
   // Méthodes pour la gestion du panier (caisse)
   Future<bool> addProductByBarcode(String codeBarre) async {
     Produit? produit = await _dbHelper.getProduitByCodeBarre(codeBarre);
-    if (produit != null) {
-      // Utilisez la nouvelle méthode pour ajouter au panier
-      addToCart(produit);
-      return true;
+    if (produit != null && produit.id != null) {
+      if (_cartItems.containsKey(produit.id)) {
+        int currentQuantity = _cartItems[produit.id]!.quantiteEnStock;
+        if (currentQuantity < produit.quantiteEnStock) {
+          _cartItems[produit.id!] =
+              produit.copyWith(quantiteEnStock: currentQuantity + 1);
+          notifyListeners();
+          return true;
+        } else {
+          return false;
+        }
+      } else {
+        if (produit.quantiteEnStock > 0) {
+          _cartItems[produit.id!] = produit.copyWith(quantiteEnStock: 1);
+          notifyListeners();
+          return true;
+        } else {
+          return false;
+        }
+      }
     }
     return false;
   }
 
-  void addToCart(Produit produit) {
-    if (_cartItems.containsKey(produit.codeBarre)) {
-      _cartItems[produit.codeBarre]!.quantite += 1;
-    } else {
-      // Crée une copie du produit pour l'ajouter au panier avec une quantité de 1
-      _cartItems[produit.codeBarre!] = produit.copyWith(quantite: 1);
-    }
-    notifyListeners();
-  }
-
-  void updateProductQuantity(String codeBarre, int newQuantity) {
-    if (_cartItems.containsKey(codeBarre)) {
+  void updateProductQuantity(int produitId, int newQuantity) {
+    if (_cartItems.containsKey(produitId)) {
+      final produitOriginal = _produits.firstWhere((p) => p.id == produitId);
       if (newQuantity > 0) {
-        _cartItems[codeBarre]!.quantite = newQuantity;
+        if (newQuantity <= produitOriginal.quantiteEnStock) {
+          _cartItems[produitId] =
+              produitOriginal.copyWith(quantiteEnStock: newQuantity);
+        } else {
+          _cartItems[produitId] = produitOriginal.copyWith(
+              quantiteEnStock: produitOriginal.quantiteEnStock);
+        }
       } else {
-        _cartItems.remove(codeBarre);
+        _cartItems.remove(produitId);
       }
       notifyListeners();
     }
   }
 
-  void removeProductFromCart(String codeBarre) {
-    _cartItems.remove(codeBarre);
+  void removeProductFromCart(int produitId) {
+    _cartItems.remove(produitId);
     notifyListeners();
   }
 
@@ -97,7 +110,7 @@ class ProduitViewModel extends ChangeNotifier {
   // Calculs pour la caisse
   double get subtotal {
     return _cartItems.values
-        .fold(0.0, (sum, item) => sum + (item.prix * item.quantite));
+        .fold(0.0, (sum, item) => sum + (item.prix * item.quantiteEnStock));
   }
 
   double get totalPrice {
@@ -108,8 +121,31 @@ class ProduitViewModel extends ChangeNotifier {
     if (_selectedClient == null) {
       return 0.0;
     }
-    // Exemple : 10% du sous-total en points de fidélité
     return subtotal * 0.1;
+  }
+
+  Future<void> _updateStock() async {
+    for (var produitInCart in _cartItems.values) {
+      if (produitInCart.id != null) {
+        // Find the original product from the list
+        final index = _produits.indexWhere((p) => p.id == produitInCart.id);
+        if (index != -1) {
+          final produitOriginal = _produits[index];
+          // Calculate new stock and create a new object with copyWith
+          final newStock =
+              produitOriginal.quantiteEnStock - produitInCart.quantiteEnStock;
+          final updatedProduit =
+              produitOriginal.copyWith(quantiteEnStock: newStock);
+
+          // Update the database
+          await _dbHelper.updateProduit(updatedProduit);
+
+          // Update the local list in the view model
+          _produits[index] = updatedProduit;
+        }
+      }
+    }
+    notifyListeners();
   }
 
   Future<void> finalizeOrder() async {
@@ -118,8 +154,7 @@ class ProduitViewModel extends ChangeNotifier {
       _selectedClient!.loyaltyPoints += pointsGagnes;
       await _dbHelper.updateClient(_selectedClient!);
     }
-
-    // Réinitialisation du panier et du client
+    await _updateStock();
     clearCart();
     notifyListeners();
   }
