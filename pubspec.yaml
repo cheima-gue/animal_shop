@@ -18,6 +18,8 @@ dependencies:
   provider: ^6.1.2 # Mise à jour vers la version utilisée dans l'exemple
   path_provider: ^2.1.5
   audioplayers: ^6.5.0
+  shared_preferences: ^2.5.3
+  flutter_barcode_scanner: ^2.0.0
 
 dev_dependencies:
   flutter_test:

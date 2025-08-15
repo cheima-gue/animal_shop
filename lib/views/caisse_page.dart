@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/produit.dart';
+import '../models/client.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/client_viewmodel.dart';
-import '../models/client.dart';
+import 'parametre_page.dart';
 
 class CaissePage extends StatefulWidget {
   const CaissePage({super.key});
@@ -31,7 +32,9 @@ class _CaissePageState extends State<CaissePage> {
     super.initState();
     _montantRecuController.addListener(_calculerMonnaie);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Initialiser les ViewModels ici
       Provider.of<ClientViewModel>(context, listen: false).fetchClients();
+      Provider.of<ProduitViewModel>(context, listen: false).initialize(context);
     });
   }
 
@@ -45,7 +48,6 @@ class _CaissePageState extends State<CaissePage> {
     super.dispose();
   }
 
-  // Modification de la méthode _processBarcode pour gérer le stock
   void _processBarcode(String barcode) async {
     if (barcode.isNotEmpty) {
       bool success = await Provider.of<ProduitViewModel>(context, listen: false)
@@ -56,20 +58,19 @@ class _CaissePageState extends State<CaissePage> {
       if (!success) {
         final produitViewModel =
             Provider.of<ProduitViewModel>(context, listen: false);
-        final produit =
-            produitViewModel.produits.firstWhere((p) => p.codeBarre == barcode,
-                // Création d'une instance Produit valide
-                orElse: () => Produit(
-                    nom: '',
-                    codeBarre: '',
-                    prix: 0,
-                    subCategoryId: 0, // Ajout du champ manquant
-                    quantiteEnStock: 0));
+        final produit = produitViewModel.produits.firstWhere(
+          (p) => p.codeBarre == barcode,
+          orElse: () => Produit(
+              nom: '',
+              codeBarre: '',
+              prix: 0,
+              subCategoryId: 0,
+              quantiteEnStock: 0),
+        );
 
         String message;
         if (produit.nom.isNotEmpty) {
           if (produit.quantiteEnStock <= 0) {
-            // Utilisation de quantiteEnStock
             message = 'Le produit "${produit.nom}" est en rupture de stock.';
           } else {
             message = 'Stock insuffisant pour le produit "${produit.nom}".';
@@ -102,15 +103,13 @@ class _CaissePageState extends State<CaissePage> {
     });
   }
 
-  // Modification de la boîte de dialogue pour afficher le stock
   Future<void> _showQuantityDialog(Produit produit) async {
-    final TextEditingController quantiteController = TextEditingController(
-        text: produit.quantiteEnStock
-            .toString()); // Utilisation de quantiteEnStock
+    final TextEditingController quantiteController =
+        TextEditingController(text: produit.quantiteEnStock.toString());
     final int maxStock = Provider.of<ProduitViewModel>(context, listen: false)
         .produits
         .firstWhere((p) => p.id == produit.id)
-        .quantiteEnStock; // Utilisation de l'ID et quantiteEnStock
+        .quantiteEnStock;
 
     await showDialog(
       context: context,
@@ -155,18 +154,85 @@ class _CaissePageState extends State<CaissePage> {
                   );
                 } else if (nouvelleQuantite > 0) {
                   Provider.of<ProduitViewModel>(context, listen: false)
-                      .updateProductQuantity(
-                          produit.id!, nouvelleQuantite); // Utilisation de l'ID
+                      .updateProductQuantity(produit.id!, nouvelleQuantite);
                   Navigator.of(context).pop();
                 } else {
                   Provider.of<ProduitViewModel>(context, listen: false)
-                      .removeProductFromCart(
-                          produit.id!); // Utilisation de l'ID
+                      .removeProductFromCart(produit.id!);
                   Navigator.of(context).pop();
                 }
               },
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProductGrid() {
+    return Consumer<ProduitViewModel>(
+      builder: (context, produitViewModel, child) {
+        if (produitViewModel.produits.isEmpty) {
+          return const Center(child: Text('Aucun produit n\'est disponible.'));
+        }
+        return GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.8,
+          ),
+          itemCount: produitViewModel.produits.length,
+          itemBuilder: (context, index) {
+            final produit = produitViewModel.produits[index];
+            return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: InkWell(
+                onTap: () {
+                  produitViewModel.addProductByBarcode(produit.codeBarre);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: produit.image != null &&
+                                  produit.image!.isNotEmpty &&
+                                  File(produit.image!).existsSync()
+                              ? Image.file(File(produit.image!),
+                                  fit: BoxFit.cover)
+                              : const Icon(Icons.image,
+                                  size: 50, color: Colors.grey),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        produit.nom,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${produit.prix.toStringAsFixed(2)} DT',
+                        style: const TextStyle(color: Colors.teal),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Stock: ${produit.quantiteEnStock}',
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -198,13 +264,12 @@ class _CaissePageState extends State<CaissePage> {
                   title: Text(produit.nom,
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(
-                      '${produit.prix.toStringAsFixed(2)} DT x ${produit.quantiteEnStock}'), // Utilisation de quantiteEnStock
+                      '${produit.prix.toStringAsFixed(2)} DT x ${produit.quantiteEnStock}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
                       if (produit.id != null) {
-                        produitViewModel.removeProductFromCart(
-                            produit.id!); // Utilisation de l'ID
+                        produitViewModel.removeProductFromCart(produit.id!);
                       }
                     },
                   ),
@@ -287,7 +352,14 @@ class _CaissePageState extends State<CaissePage> {
                 Provider.of<ProduitViewModel>(context, listen: false);
             final total = produitViewModel.totalPrice;
 
-            if (_montantRecu >= total) {
+            if (total == 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Le panier est vide.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            } else if (_montantRecu >= total) {
               produitViewModel.finalizeOrder();
               _montantRecuController.clear();
               setState(() {
@@ -379,30 +451,17 @@ class _CaissePageState extends State<CaissePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Client sélectionné:',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
+          const Text('Client sélectionné:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           const SizedBox(height: 8),
-          Text(
-            '${client.firstName} ${client.lastName}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          Text(
-            'Tél: ${client.tel}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          Text(
-            'Points de fidélité: ${client.loyaltyPoints.toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
-            ),
-          ),
+          Text('${client.firstName} ${client.lastName}',
+              style: const TextStyle(fontSize: 16)),
+          Text('Tél: ${client.tel}', style: const TextStyle(fontSize: 16)),
+          Text('Points de fidélité: ${client.loyaltyPoints.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue)),
         ],
       ),
     );
@@ -414,29 +473,52 @@ class _CaissePageState extends State<CaissePage> {
       appBar: AppBar(
         title: const Text('Caisse Enregistreuse'),
         backgroundColor: Theme.of(context).primaryColor,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const ParametrePage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Row(
         children: [
+          // Left Panel: Barcode input + Product Grid
+          Expanded(
+            flex: 2,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: TextField(
+                    controller: _barcodeController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Scanner ou saisir le code-barres',
+                      suffixIcon: Icon(Icons.qr_code_scanner),
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: _processBarcode,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _buildProductGrid(),
+                ),
+              ],
+            ),
+          ),
+          const VerticalDivider(width: 1),
+          // Middle Panel: Client Search
           Expanded(
             flex: 1,
             child: Consumer2<ProduitViewModel, ClientViewModel>(
               builder: (context, produitViewModel, clientViewModel, child) {
                 return Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: TextField(
-                        controller: _barcodeController,
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Scanner ou saisir le code-barres',
-                          suffixIcon: Icon(Icons.qr_code_scanner),
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: _processBarcode,
-                      ),
-                    ),
-                    const Divider(),
                     Row(
                       children: [
                         Expanded(
@@ -480,9 +562,15 @@ class _CaissePageState extends State<CaissePage> {
                     else
                       const Expanded(
                         child: Center(
-                          child: Text(
-                            'Ajouter des produits pour un client passager.',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          child: Padding(
+                            // Utilisation de Padding pour éviter l'overflow
+                            padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              'Ajouter des produits pour un client passager.',
+                              textAlign: TextAlign.center, // Centrer le texte
+                              style:
+                                  TextStyle(fontSize: 16, color: Colors.grey),
+                            ),
                           ),
                         ),
                       ),
@@ -492,6 +580,7 @@ class _CaissePageState extends State<CaissePage> {
             ),
           ),
           const VerticalDivider(width: 1),
+          // Right Panel: Cart and Checkout
           Expanded(
             flex: 1,
             child: Consumer<ProduitViewModel>(

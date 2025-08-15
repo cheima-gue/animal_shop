@@ -9,6 +9,7 @@ import '../models/sub_category.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../widgets/produit_card.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 
 extension IterableExtension<T> on Iterable<T> {
   T? firstWhereOrNull(bool Function(T element) test) {
@@ -84,6 +85,23 @@ class _ProduitListPageState extends State<ProduitListPage> {
     setState(() {});
   }
 
+  Future<void> _scanBarcode() async {
+    String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
+      '#ff6666',
+      'Annuler',
+      true,
+      ScanMode.BARCODE,
+    );
+
+    if (!mounted) return;
+
+    if (barcodeScanRes != '-1') {
+      setState(() {
+        _searchController.text = barcodeScanRes;
+      });
+    }
+  }
+
   void _showEditProductForm(Produit produit) {
     // Cette fonction doit naviguer vers votre page d'édition
     ScaffoldMessenger.of(context).showSnackBar(
@@ -140,15 +158,23 @@ class _ProduitListPageState extends State<ProduitListPage> {
                   decoration: InputDecoration(
                     labelText: 'Rechercher un produit...',
                     prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
                             icon: const Icon(Icons.clear),
                             onPressed: () {
                               _searchController.clear();
                               setState(() {});
                             },
-                          )
-                        : null,
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _scanBarcode,
+                        ),
+                      ],
+                    ),
                     filled: true,
                     fillColor: Colors.grey[50],
                   ),

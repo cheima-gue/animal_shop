@@ -10,6 +10,7 @@ import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
 import '../widgets/produit_card.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 
 class ProduitHomePage extends StatefulWidget {
   const ProduitHomePage({super.key});
@@ -108,6 +109,23 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
     }
   }
 
+  Future<void> _scanBarcode() async {
+    String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
+      '#ff6666', // Couleur de la ligne de scan
+      'Annuler', // Texte du bouton d'annulation
+      true, // Afficher le flash
+      ScanMode.BARCODE, // Mode de scan (code-barres)
+    );
+
+    if (!mounted) return;
+
+    if (barcodeScanRes != '-1') {
+      setState(() {
+        _codeBarreController.text = barcodeScanRes;
+      });
+    }
+  }
+
   Future<void> _onSave() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -188,7 +206,7 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
                 border: Border.all(color: Colors.grey),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: _imagePath != null
+              child: _imagePath != null && File(_imagePath!).existsSync()
                   ? Image.file(File(_imagePath!), fit: BoxFit.cover)
                   : const Icon(Icons.image, size: 50, color: Colors.grey),
             ),
@@ -251,7 +269,13 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _codeBarreController,
-                decoration: const InputDecoration(labelText: 'Code-Barres'),
+                decoration: InputDecoration(
+                  labelText: 'Code-Barres',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    onPressed: _scanBarcode,
+                  ),
+                ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Le code-barres est obligatoire';

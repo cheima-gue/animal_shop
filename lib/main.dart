@@ -1,13 +1,17 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
-import 'package:my_desktop_app/viewmodels/client_viewmodel.dart';
 import 'package:provider/provider.dart';
-import 'views/home_page.dart';
+import 'services/database_helper.dart';
 import 'viewmodels/produit_viewmodel.dart';
-import 'viewmodels/category_viewmodel.dart';
+import 'viewmodels/client_viewmodel.dart';
+import 'viewmodels/parametre_viewmodel.dart';
+import 'viewmodels/category_viewmodel.dart'; // Importer le CategoryViewModel
+import 'views/home_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseHelper().initDatabase();
   runApp(const MyApp());
 }
 
@@ -19,38 +23,20 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ProduitViewModel()),
-        ChangeNotifierProvider(create: (_) => CategoryViewModel()),
+        ChangeNotifierProvider(create: (_) => ClientViewModel()),
+        ChangeNotifierProvider(create: (_) => ParametreViewModel()),
         ChangeNotifierProvider(
-            create: (_) => ClientViewModel()), // Ajoutez le ClientViewModel ici
+            create: (_) =>
+                CategoryViewModel()), // Ajouter le CategoryViewModel ici
       ],
       child: MaterialApp(
-        title: 'My Desktop App',
+        title: 'POS App',
         theme: ThemeData(
-          primaryColor: Colors.teal,
-          scaffoldBackgroundColor: Colors.grey[200],
-          cardColor: Colors.white,
-          appBarTheme: const AppBarTheme(
-            color: Colors.teal,
-            foregroundColor: Colors.white,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
-            ),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.0),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.0),
-              borderSide: const BorderSide(color: Colors.teal, width: 2.0),
-            ),
-          ),
-          useMaterial3: true,
+          primarySwatch: Colors.teal,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
         ),
         home: const HomePage(),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

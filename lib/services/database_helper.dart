@@ -52,7 +52,7 @@ class DatabaseHelper {
             )
           ''');
 
-          // Correction: Changed 'stock' to 'quantiteEnStock' to match the model
+          // La colonne 'quantiteEnStock' est correctement ajoutée ici
           await db.execute('''
             CREATE TABLE produits(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +61,7 @@ class DatabaseHelper {
               image TEXT,
               codeBarre TEXT UNIQUE NOT NULL,
               subCategoryId INTEGER,
-              quantiteEnStock INTEGER NOT NULL DEFAULT 0, -- Corrected column name
+              quantiteEnStock INTEGER NOT NULL DEFAULT 0,
               FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
             )
           ''');
@@ -77,6 +77,7 @@ class DatabaseHelper {
           ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
+          // Migration pour les versions 3, 4 et 5
           if (oldVersion < 3) {
             await db.execute('DROP TABLE IF EXISTS clients');
             await db.execute('''
@@ -99,7 +100,6 @@ class DatabaseHelper {
             }
           }
           if (oldVersion < 5) {
-            // Correction: Ajout de la colonne 'quantiteEnStock'
             final columns = await db.rawQuery('PRAGMA table_info(produits)');
             final hasQuantiteEnStock =
                 columns.any((column) => column['name'] == 'quantiteEnStock');
@@ -214,7 +214,7 @@ class DatabaseHelper {
     return await db.delete('sub_categories', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ---------------- NOUVELLES MÉTHODES POUR LES CLIENTS ----------------
+  // ---------------- CLIENTS ----------------
   Future<int> insertClient(Client client) async {
     final db = await database;
     return await db.insert(
