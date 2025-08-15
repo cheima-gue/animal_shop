@@ -14,6 +14,10 @@ class ProduitViewModel extends ChangeNotifier {
   Client? _selectedClient;
   double _loyaltyPointsEarned = 0.0;
 
+  // NOUVEAU: Variables pour la réduction des points de fidélité
+  double _loyaltyDiscount = 0.0;
+  double _loyaltyPointsUsed = 0.0;
+
   // Ajoutez un BuildContext pour accéder à ParametreViewModel
   late BuildContext _context;
 
@@ -22,12 +26,15 @@ class ProduitViewModel extends ChangeNotifier {
   Client? get selectedClient => _selectedClient;
   double get loyaltyPointsEarned => _loyaltyPointsEarned;
 
+  // NOUVEAU: Getter pour la réduction des points de fidélité
+  double get loyaltyDiscount => _loyaltyDiscount;
+
   double get subtotal => _cartItems.values
       .fold(0, (sum, item) => sum + (item.prix * item.quantiteEnStock));
 
   double get totalPrice {
-    // Implementez ici la logique de réduction si nécessaire
-    return subtotal;
+    // MODIFIÉ: Le total est le sous-total moins la réduction des points
+    return subtotal - _loyaltyDiscount;
   }
 
   // Initialisez le context pour pouvoir utiliser Provider.of
@@ -82,6 +89,7 @@ class ProduitViewModel extends ChangeNotifier {
           existingProduct.copyWith(quantiteEnStock: 1);
     }
     _calculateLoyaltyPoints();
+    resetLoyaltyDiscount(); // Réinitialise la réduction à chaque ajout d'article
     notifyListeners();
     return true;
   }
@@ -97,6 +105,7 @@ class ProduitViewModel extends ChangeNotifier {
         _cartItems.remove(productId);
       }
       _calculateLoyaltyPoints();
+      resetLoyaltyDiscount(); // Réinitialise la réduction
       notifyListeners();
     }
   }
@@ -104,18 +113,21 @@ class ProduitViewModel extends ChangeNotifier {
   void removeProductFromCart(int productId) {
     _cartItems.remove(productId);
     _calculateLoyaltyPoints();
+    resetLoyaltyDiscount(); // Réinitialise la réduction
     notifyListeners();
   }
 
   void selectClient(Client client) {
     _selectedClient = client;
     _calculateLoyaltyPoints();
+    resetLoyaltyDiscount(); // Réinitialise la réduction lorsqu'un nouveau client est sélectionné
     notifyListeners();
   }
 
   void resetClient() {
     _selectedClient = null;
     _loyaltyPointsEarned = 0.0;
+    resetLoyaltyDiscount(); // Réinitialise la réduction
     notifyListeners();
   }
 
@@ -131,8 +143,34 @@ class ProduitViewModel extends ChangeNotifier {
     }
   }
 
+  // NOUVEAU: Méthode pour appliquer les points de fidélité comme réduction
+  void applyLoyaltyPoints() {
+    if (_selectedClient != null && _selectedClient!.loyaltyPoints > 0) {
+      // Conversion des points en dinars (par exemple, 1000 pts = 1 DT)
+      final double discountAmount = _selectedClient!.loyaltyPoints / 1000;
+
+      // La réduction ne doit pas dépasser le sous-total
+      _loyaltyDiscount = discountAmount > subtotal ? subtotal : discountAmount;
+      _loyaltyPointsUsed =
+          _loyaltyDiscount * 1000; // Calcule les points utilisés
+
+      notifyListeners();
+    }
+  }
+
+  // NOUVEAU: Méthode pour réinitialiser la réduction
+  void resetLoyaltyDiscount() {
+    _loyaltyDiscount = 0.0;
+    _loyaltyPointsUsed = 0.0;
+    notifyListeners();
+  }
+
   Future<void> finalizeOrder() async {
     if (_selectedClient != null) {
+      // MODIFIÉ: On déduit d'abord les points utilisés, puis on ajoute les points gagnés.
+      if (_loyaltyPointsUsed > 0) {
+        _selectedClient!.loyaltyPoints -= _loyaltyPointsUsed;
+      }
       _selectedClient!.loyaltyPoints += _loyaltyPointsEarned;
       await _dbHelper.updateClient(_selectedClient!);
     }
@@ -146,6 +184,7 @@ class ProduitViewModel extends ChangeNotifier {
 
     _cartItems.clear();
     _loyaltyPointsEarned = 0.0;
+    resetLoyaltyDiscount(); // S'assurer que la réduction est réinitialisée après la finalisation
     notifyListeners();
   }
 }

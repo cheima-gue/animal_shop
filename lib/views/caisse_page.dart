@@ -9,6 +9,7 @@ import '../models/client.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/client_viewmodel.dart';
 import 'parametre_page.dart';
+import '../services/pdf_service.dart';
 
 class CaissePage extends StatefulWidget {
   const CaissePage({super.key});
@@ -32,7 +33,6 @@ class _CaissePageState extends State<CaissePage> {
     super.initState();
     _montantRecuController.addListener(_calculerMonnaie);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Initialiser les ViewModels ici
       Provider.of<ClientViewModel>(context, listen: false).fetchClients();
       Provider.of<ProduitViewModel>(context, listen: false).initialize(context);
     });
@@ -304,6 +304,21 @@ class _CaissePageState extends State<CaissePage> {
                             const TextStyle(fontSize: 18, color: Colors.blue)),
                   ],
                 ),
+                // NOUVEAU: Affichage de la réduction des points de fidélité
+                if (produitViewModel.loyaltyDiscount > 0) ...[
+                  const SizedBox(height: 8.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Réduction (pts):',
+                          style: TextStyle(fontSize: 18)),
+                      Text(
+                          '-${produitViewModel.loyaltyDiscount.toStringAsFixed(2)} DT',
+                          style: const TextStyle(
+                              fontSize: 18, color: Colors.green)),
+                    ],
+                  ),
+                ],
               ],
               const SizedBox(height: 16.0),
               Row(
@@ -322,6 +337,28 @@ class _CaissePageState extends State<CaissePage> {
             ],
           ),
         ),
+        const SizedBox(height: 16.0),
+        // NOUVEAU: Bouton pour utiliser les points de fidélité
+        if (produitViewModel.selectedClient != null &&
+            produitViewModel.selectedClient!.loyaltyPoints > 0)
+          ElevatedButton(
+            onPressed: produitViewModel.loyaltyDiscount == 0
+                ? () {
+                    produitViewModel.applyLoyaltyPoints();
+                    _calculerMonnaie();
+                  }
+                : null, // Désactive le bouton si la réduction est déjà appliquée
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              minimumSize: const Size(double.infinity, 50),
+            ),
+            child: Text(
+              produitViewModel.loyaltyDiscount > 0
+                  ? 'Réduction appliquée!'
+                  : 'Utiliser les points de fidélité (${produitViewModel.selectedClient!.loyaltyPoints.toStringAsFixed(2)} pts)',
+              style: const TextStyle(fontSize: 18),
+            ),
+          ),
         const SizedBox(height: 16.0),
         TextField(
           controller: _montantRecuController,
@@ -361,6 +398,13 @@ class _CaissePageState extends State<CaissePage> {
               );
             } else if (_montantRecu >= total) {
               produitViewModel.finalizeOrder();
+
+              PdfService().generateAndPrintTicketPdf(
+                produitViewModel,
+                _montantRecu,
+                _monnaieARendre,
+              );
+
               _montantRecuController.clear();
               setState(() {
                 _montantRecu = 0.0;
@@ -486,7 +530,6 @@ class _CaissePageState extends State<CaissePage> {
       ),
       body: Row(
         children: [
-          // Left Panel: Barcode input + Product Grid
           Expanded(
             flex: 2,
             child: Column(
@@ -512,7 +555,6 @@ class _CaissePageState extends State<CaissePage> {
             ),
           ),
           const VerticalDivider(width: 1),
-          // Middle Panel: Client Search
           Expanded(
             flex: 1,
             child: Consumer2<ProduitViewModel, ClientViewModel>(
@@ -563,11 +605,10 @@ class _CaissePageState extends State<CaissePage> {
                       const Expanded(
                         child: Center(
                           child: Padding(
-                            // Utilisation de Padding pour éviter l'overflow
                             padding: EdgeInsets.symmetric(horizontal: 16.0),
                             child: Text(
                               'Ajouter des produits pour un client passager.',
-                              textAlign: TextAlign.center, // Centrer le texte
+                              textAlign: TextAlign.center,
                               style:
                                   TextStyle(fontSize: 16, color: Colors.grey),
                             ),
@@ -580,7 +621,6 @@ class _CaissePageState extends State<CaissePage> {
             ),
           ),
           const VerticalDivider(width: 1),
-          // Right Panel: Cart and Checkout
           Expanded(
             flex: 1,
             child: Consumer<ProduitViewModel>(
