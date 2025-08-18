@@ -14,11 +14,10 @@ class ProduitViewModel extends ChangeNotifier {
   Client? _selectedClient;
   double _loyaltyPointsEarned = 0.0;
 
-  // NOUVEAU: Variables pour la réduction des points de fidélité
+  // Variables pour la réduction des points de fidélité
   double _loyaltyDiscount = 0.0;
   double _loyaltyPointsUsed = 0.0;
 
-  // Ajoutez un BuildContext pour accéder à ParametreViewModel
   late BuildContext _context;
 
   List<Produit> get produits => _produits;
@@ -26,18 +25,16 @@ class ProduitViewModel extends ChangeNotifier {
   Client? get selectedClient => _selectedClient;
   double get loyaltyPointsEarned => _loyaltyPointsEarned;
 
-  // NOUVEAU: Getter pour la réduction des points de fidélité
   double get loyaltyDiscount => _loyaltyDiscount;
+  double get loyaltyPointsUsed => _loyaltyPointsUsed; // Nouveau getter
 
   double get subtotal => _cartItems.values
       .fold(0, (sum, item) => sum + (item.prix * item.quantiteEnStock));
 
   double get totalPrice {
-    // MODIFIÉ: Le total est le sous-total moins la réduction des points
     return subtotal - _loyaltyDiscount;
   }
 
-  // Initialisez le context pour pouvoir utiliser Provider.of
   void initialize(BuildContext context) {
     _context = context;
     fetchProduits();
@@ -48,22 +45,20 @@ class ProduitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============== Méthodes de gestion des produits manquantes ============
   Future<void> addProduit(Produit produit) async {
     await _dbHelper.insertProduit(produit);
-    await fetchProduits(); // Actualise la liste après l'ajout
+    await fetchProduits();
   }
 
   Future<void> updateProduit(Produit produit) async {
     await _dbHelper.updateProduit(produit);
-    await fetchProduits(); // Actualise la liste après la mise à jour
+    await fetchProduits();
   }
 
   Future<void> deleteProduit(int id) async {
     await _dbHelper.deleteProduit(id);
-    await fetchProduits(); // Actualise la liste après la suppression
+    await fetchProduits();
   }
-  // =========================================================================
 
   Future<bool> addProductByBarcode(String barcode) async {
     final existingProduct = _produits.firstWhere(
@@ -73,13 +68,12 @@ class ProduitViewModel extends ChangeNotifier {
     );
 
     if (existingProduct.id == null) {
-      return false; // Produit non trouvé
+      return false;
     }
 
-    // Vérifie si la quantité demandée ne dépasse pas le stock
     if ((_cartItems[existingProduct.id]?.quantiteEnStock ?? 0) + 1 >
         existingProduct.quantiteEnStock) {
-      return false; // Stock insuffisant
+      return false;
     }
 
     if (_cartItems.containsKey(existingProduct.id)) {
@@ -89,7 +83,7 @@ class ProduitViewModel extends ChangeNotifier {
           existingProduct.copyWith(quantiteEnStock: 1);
     }
     _calculateLoyaltyPoints();
-    resetLoyaltyDiscount(); // Réinitialise la réduction à chaque ajout d'article
+    resetLoyaltyDiscount();
     notifyListeners();
     return true;
   }
@@ -105,7 +99,7 @@ class ProduitViewModel extends ChangeNotifier {
         _cartItems.remove(productId);
       }
       _calculateLoyaltyPoints();
-      resetLoyaltyDiscount(); // Réinitialise la réduction
+      resetLoyaltyDiscount();
       notifyListeners();
     }
   }
@@ -113,37 +107,36 @@ class ProduitViewModel extends ChangeNotifier {
   void removeProductFromCart(int productId) {
     _cartItems.remove(productId);
     _calculateLoyaltyPoints();
-    resetLoyaltyDiscount(); // Réinitialise la réduction
+    resetLoyaltyDiscount();
     notifyListeners();
   }
 
   void selectClient(Client client) {
     _selectedClient = client;
     _calculateLoyaltyPoints();
-    resetLoyaltyDiscount(); // Réinitialise la réduction lorsqu'un nouveau client est sélectionné
+    resetLoyaltyDiscount();
     notifyListeners();
   }
 
   void resetClient() {
     _selectedClient = null;
     _loyaltyPointsEarned = 0.0;
-    resetLoyaltyDiscount(); // Réinitialise la réduction
+    resetLoyaltyDiscount();
     notifyListeners();
   }
 
+  // MODIFIÉ : Utilise `pointsPerDinar` pour un calcul plus simple
   void _calculateLoyaltyPoints() {
     if (_selectedClient != null) {
-      final double loyaltyRate =
+      final double pointsPerDinar =
           Provider.of<ParametreViewModel>(_context, listen: false)
-              .loyaltyPointsRate;
-      _loyaltyPointsEarned =
-          (subtotal * loyaltyRate) / 1000; // Calcule les millimes
+              .pointsPerDinar;
+      _loyaltyPointsEarned = subtotal * pointsPerDinar;
     } else {
       _loyaltyPointsEarned = 0.0;
     }
   }
 
-  // NOUVEAU: Méthode pour appliquer les points de fidélité comme réduction
   void applyLoyaltyPoints() {
     if (_selectedClient != null && _selectedClient!.loyaltyPoints > 0) {
       // Conversion des points en dinars (par exemple, 1000 pts = 1 DT)
@@ -151,14 +144,12 @@ class ProduitViewModel extends ChangeNotifier {
 
       // La réduction ne doit pas dépasser le sous-total
       _loyaltyDiscount = discountAmount > subtotal ? subtotal : discountAmount;
-      _loyaltyPointsUsed =
-          _loyaltyDiscount * 1000; // Calcule les points utilisés
+      _loyaltyPointsUsed = _loyaltyDiscount * 1000;
 
       notifyListeners();
     }
   }
 
-  // NOUVEAU: Méthode pour réinitialiser la réduction
   void resetLoyaltyDiscount() {
     _loyaltyDiscount = 0.0;
     _loyaltyPointsUsed = 0.0;
@@ -167,7 +158,7 @@ class ProduitViewModel extends ChangeNotifier {
 
   Future<void> finalizeOrder() async {
     if (_selectedClient != null) {
-      // MODIFIÉ: On déduit d'abord les points utilisés, puis on ajoute les points gagnés.
+      // Met à jour les points du client en déduisant d'abord ceux utilisés
       if (_loyaltyPointsUsed > 0) {
         _selectedClient!.loyaltyPoints -= _loyaltyPointsUsed;
       }
@@ -175,16 +166,17 @@ class ProduitViewModel extends ChangeNotifier {
       await _dbHelper.updateClient(_selectedClient!);
     }
 
-    // Mettre à jour le stock pour chaque produit dans le panier
+    // Met à jour le stock pour chaque produit
     for (var cartItem in _cartItems.values) {
       final originalProduct = _produits.firstWhere((p) => p.id == cartItem.id);
       originalProduct.quantiteEnStock -= cartItem.quantiteEnStock;
       await _dbHelper.updateProduit(originalProduct);
     }
 
+    // Réinitialise le panier et les variables après la finalisation
     _cartItems.clear();
     _loyaltyPointsEarned = 0.0;
-    resetLoyaltyDiscount(); // S'assurer que la réduction est réinitialisée après la finalisation
+    resetLoyaltyDiscount();
     notifyListeners();
   }
 }
