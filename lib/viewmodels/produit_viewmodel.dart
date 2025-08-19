@@ -5,12 +5,14 @@ import 'package:provider/provider.dart';
 import '../models/produit.dart';
 import '../models/client.dart';
 import '../services/database_helper.dart';
+import '../models/commande.dart'; // NOUVEL IMPORT
+import '../models/order_item.dart'; // NOUVEL IMPORT
 import 'parametre_viewmodel.dart';
 
 class ProduitViewModel extends ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   List<Produit> _produits = [];
-  Map<int, Produit> _cartItems = {};
+  final Map<int, Produit> _cartItems = {};
   Client? _selectedClient;
   double _loyaltyPointsEarned = 0.0;
 
@@ -26,7 +28,7 @@ class ProduitViewModel extends ChangeNotifier {
   double get loyaltyPointsEarned => _loyaltyPointsEarned;
 
   double get loyaltyDiscount => _loyaltyDiscount;
-  double get loyaltyPointsUsed => _loyaltyPointsUsed; // Nouveau getter
+  double get loyaltyPointsUsed => _loyaltyPointsUsed;
 
   double get subtotal => _cartItems.values
       .fold(0, (sum, item) => sum + (item.prix * item.quantiteEnStock));
@@ -125,7 +127,6 @@ class ProduitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // MODIFIÉ : Utilise `pointsPerDinar` pour un calcul plus simple
   void _calculateLoyaltyPoints() {
     if (_selectedClient != null) {
       final double pointsPerDinar =
@@ -137,17 +138,33 @@ class ProduitViewModel extends ChangeNotifier {
     }
   }
 
-  void applyLoyaltyPoints() {
+  void applyAllLoyaltyPoints() {
     if (_selectedClient != null && _selectedClient!.loyaltyPoints > 0) {
-      // Conversion des points en dinars (par exemple, 1000 pts = 1 DT)
       final double discountAmount = _selectedClient!.loyaltyPoints / 1000;
-
-      // La réduction ne doit pas dépasser le sous-total
       _loyaltyDiscount = discountAmount > subtotal ? subtotal : discountAmount;
       _loyaltyPointsUsed = _loyaltyDiscount * 1000;
-
       notifyListeners();
     }
+  }
+
+  void applyCustomLoyaltyPoints(double pointsToUse) {
+    if (_selectedClient == null || pointsToUse <= 0) {
+      _loyaltyDiscount = 0.0;
+      _loyaltyPointsUsed = 0.0;
+      notifyListeners();
+      return;
+    }
+
+    final double validatedPoints = pointsToUse > _selectedClient!.loyaltyPoints
+        ? _selectedClient!.loyaltyPoints
+        : pointsToUse;
+
+    final double discountAmount = validatedPoints / 1000;
+
+    _loyaltyDiscount = discountAmount > subtotal ? subtotal : discountAmount;
+    _loyaltyPointsUsed = _loyaltyDiscount * 1000;
+
+    notifyListeners();
   }
 
   void resetLoyaltyDiscount() {
@@ -156,17 +173,40 @@ class ProduitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // NOUVELLE LOGIQUE POUR FINALISER LA COMMANDE
   Future<void> finalizeOrder() async {
+    if (_cartItems.isEmpty) return;
+
+    // 1. Sauvegarder la commande
+    final newCommande = Commande(
+      clientId:
+          _selectedClient?.id, // Utilisation de l'ID du client sélectionné
+      dateCommande: DateTime.now().toIso8601String(),
+      total: totalPrice,
+      items: [], // Les items seront gérés séparément
+    );
+
+    final commandeId = await _dbHelper.insertCommande(newCommande);
+
+    // 2. Sauvegarder chaque article de la commande
+    for (var cartItem in _cartItems.values) {
+      final orderItem = OrderItem(
+        commandeId: commandeId,
+        produit: cartItem,
+        quantity: cartItem.quantiteEnStock,
+        price: cartItem.prix,
+      );
+      await _dbHelper.insertOrderItem(orderItem);
+    }
+
+    // 3. Mettre à jour les points de fidélité du client
     if (_selectedClient != null) {
-      // Met à jour les points du client en déduisant d'abord ceux utilisés
-      if (_loyaltyPointsUsed > 0) {
-        _selectedClient!.loyaltyPoints -= _loyaltyPointsUsed;
-      }
+      _selectedClient!.loyaltyPoints -= _loyaltyPointsUsed;
       _selectedClient!.loyaltyPoints += _loyaltyPointsEarned;
       await _dbHelper.updateClient(_selectedClient!);
     }
 
-    // Met à jour le stock pour chaque produit
+    // 4. Mettre à jour le stock pour chaque produit
     for (var cartItem in _cartItems.values) {
       final originalProduct = _produits.firstWhere((p) => p.id == cartItem.id);
       originalProduct.quantiteEnStock -= cartItem.quantiteEnStock;

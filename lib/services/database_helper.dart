@@ -6,6 +6,8 @@ import '../models/produit.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
 import '../models/client.dart';
+import '../models/commande.dart'; // NOUVEL IMPORT
+import '../models/order_item.dart'; // NOUVEL IMPORT
 
 class DatabaseHelper {
   static Database? _database;
@@ -34,7 +36,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5, // Incrément de la version pour le stock
+        version: 6, // Incrément de la version pour les nouvelles tables
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE categories(
@@ -42,7 +44,6 @@ class DatabaseHelper {
               nom TEXT NOT NULL UNIQUE
             )
           ''');
-
           await db.execute('''
             CREATE TABLE sub_categories(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,8 +52,6 @@ class DatabaseHelper {
               FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE
             )
           ''');
-
-          // La colonne 'quantiteEnStock' est correctement ajoutée ici
           await db.execute('''
             CREATE TABLE produits(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +64,6 @@ class DatabaseHelper {
               FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
             )
           ''');
-
           await db.execute('''
             CREATE TABLE clients(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,38 +73,49 @@ class DatabaseHelper {
               loyaltyPoints REAL NOT NULL DEFAULT 0.0
             )
           ''');
+          // NOUVELLES TABLES POUR L'HISTORIQUE
+          await db.execute('''
+            CREATE TABLE commandes(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              clientId INTEGER,
+              dateCommande TEXT,
+              total REAL
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE orderItems(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              commandeId INTEGER,
+              produitId INTEGER,
+              quantity INTEGER,
+              price REAL,
+              FOREIGN KEY (commandeId) REFERENCES commandes(id) ON DELETE CASCADE,
+              FOREIGN KEY (produitId) REFERENCES produits(id) ON DELETE SET NULL
+            )
+          ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-          // Migration pour les versions 3, 4 et 5
-          if (oldVersion < 3) {
-            await db.execute('DROP TABLE IF EXISTS clients');
+          if (oldVersion < 6) {
+            // Création des tables 'commandes' et 'orderItems' si elles n'existent pas
             await db.execute('''
-              CREATE TABLE clients(
+              CREATE TABLE IF NOT EXISTS commandes(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                firstName TEXT,
-                lastName TEXT,
-                tel TEXT UNIQUE,
-                loyaltyPoints REAL NOT NULL DEFAULT 0.0
+                clientId INTEGER,
+                dateCommande TEXT,
+                total REAL
               )
             ''');
-          }
-          if (oldVersion < 4) {
-            final columns = await db.rawQuery('PRAGMA table_info(clients)');
-            final hasLoyaltyPoints =
-                columns.any((column) => column['name'] == 'loyaltyPoints');
-            if (!hasLoyaltyPoints) {
-              await db.execute(
-                  'ALTER TABLE clients ADD COLUMN loyaltyPoints REAL NOT NULL DEFAULT 0.0');
-            }
-          }
-          if (oldVersion < 5) {
-            final columns = await db.rawQuery('PRAGMA table_info(produits)');
-            final hasQuantiteEnStock =
-                columns.any((column) => column['name'] == 'quantiteEnStock');
-            if (!hasQuantiteEnStock) {
-              await db.execute(
-                  'ALTER TABLE produits ADD COLUMN quantiteEnStock INTEGER NOT NULL DEFAULT 0');
-            }
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS orderItems(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                commandeId INTEGER,
+                produitId INTEGER,
+                quantity INTEGER,
+                price REAL,
+                FOREIGN KEY (commandeId) REFERENCES commandes(id) ON DELETE CASCADE,
+                FOREIGN KEY (produitId) REFERENCES produits(id) ON DELETE SET NULL
+              )
+            ''');
           }
         },
         onConfigure: (db) async {
@@ -254,5 +263,36 @@ class DatabaseHelper {
       return Client.fromMap(maps.first);
     }
     return null;
+  }
+
+  // ---------------- NOUVELLES MÉTHODES POUR L'HISTORIQUE ----------------
+  Future<int> insertCommande(Commande commande) async {
+    final db = await database;
+    return await db.insert('commandes', commande.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<int> insertOrderItem(OrderItem item) async {
+    final db = await database;
+    return await db.insert('orderItems', item.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, dynamic>>> getClientHistory(int clientId) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT * FROM commandes
+      WHERE clientId = ?
+      ORDER BY dateCommande DESC
+    ''', [clientId]);
+  }
+
+  Future<List<Map<String, dynamic>>> getOrderItems(int commandeId) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT oi.*, p.nom, p.image FROM orderItems oi
+      JOIN produits p ON oi.produitId = p.id
+      WHERE oi.commandeId = ?
+    ''', [commandeId]);
   }
 }

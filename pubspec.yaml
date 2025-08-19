@@ -24,6 +24,7 @@ dependencies:
   # New dependencies for PDF generation
   pdf: ^3.10.8
   printing: ^5.11.1
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:

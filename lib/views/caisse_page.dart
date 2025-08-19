@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/produit.dart';
-import '../models/client.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/client_viewmodel.dart';
 import 'parametre_page.dart';
+import 'client_list_page.dart'; // NOUVEL IMPORT
 import '../services/pdf_service.dart';
 
 class CaissePage extends StatefulWidget {
@@ -22,6 +22,8 @@ class _CaissePageState extends State<CaissePage> {
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _montantRecuController = TextEditingController();
   final TextEditingController _clientSearchController = TextEditingController();
+  final TextEditingController _loyaltyPointsController =
+      TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   double _montantRecu = 0.0;
@@ -44,6 +46,7 @@ class _CaissePageState extends State<CaissePage> {
     _montantRecuController.removeListener(_calculerMonnaie);
     _montantRecuController.dispose();
     _clientSearchController.dispose();
+    _loyaltyPointsController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -304,21 +307,58 @@ class _CaissePageState extends State<CaissePage> {
                             const TextStyle(fontSize: 18, color: Colors.blue)),
                   ],
                 ),
-                // NOUVEAU: Affichage de la réduction des points de fidélité
-                if (produitViewModel.loyaltyDiscount > 0) ...[
-                  const SizedBox(height: 8.0),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                if (produitViewModel.selectedClient != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Réduction (pts):',
-                          style: TextStyle(fontSize: 18)),
-                      Text(
-                          '-${produitViewModel.loyaltyDiscount.toStringAsFixed(2)} DT',
-                          style: const TextStyle(
-                              fontSize: 18, color: Colors.green)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _loyaltyPointsController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Points à utiliser',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              onChanged: (_) {
+                                final pointsToUse = double.tryParse(
+                                        _loyaltyPointsController.text) ??
+                                    0.0;
+                                produitViewModel
+                                    .applyCustomLoyaltyPoints(pointsToUse);
+                                _calculerMonnaie();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              final pointsToUse = double.tryParse(
+                                      _loyaltyPointsController.text) ??
+                                  0.0;
+                              produitViewModel
+                                  .applyCustomLoyaltyPoints(pointsToUse);
+                              _calculerMonnaie();
+                            },
+                            child: const Text('Appliquer'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (produitViewModel.loyaltyDiscount > 0)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Réduction (points):'),
+                            Text(
+                                '-${produitViewModel.loyaltyDiscount.toStringAsFixed(2)} DT'),
+                          ],
+                        ),
                     ],
                   ),
-                ],
               ],
               const SizedBox(height: 16.0),
               Row(
@@ -337,28 +377,6 @@ class _CaissePageState extends State<CaissePage> {
             ],
           ),
         ),
-        const SizedBox(height: 16.0),
-        // NOUVEAU: Bouton pour utiliser les points de fidélité
-        if (produitViewModel.selectedClient != null &&
-            produitViewModel.selectedClient!.loyaltyPoints > 0)
-          ElevatedButton(
-            onPressed: produitViewModel.loyaltyDiscount == 0
-                ? () {
-                    produitViewModel.applyLoyaltyPoints();
-                    _calculerMonnaie();
-                  }
-                : null, // Désactive le bouton si la réduction est déjà appliquée
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            child: Text(
-              produitViewModel.loyaltyDiscount > 0
-                  ? 'Réduction appliquée!'
-                  : 'Utiliser les points de fidélité (${produitViewModel.selectedClient!.loyaltyPoints.toStringAsFixed(2)} pts)',
-              style: const TextStyle(fontSize: 18),
-            ),
-          ),
         const SizedBox(height: 16.0),
         TextField(
           controller: _montantRecuController,
@@ -406,6 +424,7 @@ class _CaissePageState extends State<CaissePage> {
               );
 
               _montantRecuController.clear();
+              _loyaltyPointsController.clear();
               setState(() {
                 _montantRecu = 0.0;
                 _monnaieARendre = 0.0;
@@ -518,6 +537,15 @@ class _CaissePageState extends State<CaissePage> {
         title: const Text('Caisse Enregistreuse'),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
+          // NOUVELLE ACTION : Bouton pour la liste des clients
+          IconButton(
+            icon: const Icon(Icons.people),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const ClientListPage()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
