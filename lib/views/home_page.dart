@@ -88,7 +88,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 class _HomePageContent extends StatelessWidget {
-  const _HomePageContent({super.key});
+  const _HomePageContent();
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +348,7 @@ class _HomePageContent extends StatelessWidget {
                       onDelete: null,
                       onAddToCart: (p) async {
                         final success = await produitViewModel
-                            .addProductByBarcode(p.codeBarre!);
+                            .addProductByBarcode(p.codeBarre);
                         if (success) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

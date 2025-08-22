@@ -12,17 +12,30 @@ class ParametrePage extends StatefulWidget {
 }
 
 class _ParametrePageState extends State<ParametrePage> {
-  // Contrôleurs pour les champs de texte
   final TextEditingController _pointsController = TextEditingController();
   final TextEditingController _montantController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Initialise les contrôleurs avec des valeurs par défaut
-    // La logique de récupération des valeurs précédentes se ferait dans le ViewModel,
-    // mais la vue peut utiliser des valeurs par défaut si ce n'est pas nécessaire.
-    _pointsController.text = '50';
+    // Utiliser un post-frame callback pour s'assurer que le contexte est valide
+    // avant de tenter de lire les données du provider.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAndDisplayParameters();
+    });
+  }
+
+  void _loadAndDisplayParameters() {
+    // Récupérer le ViewModel sans écouter pour éviter les boucles infinies.
+    final paramViewModel =
+        Provider.of<ParametreViewModel>(context, listen: false);
+
+    // Mettre à jour les contrôleurs avec les valeurs du ViewModel.
+    // Votre ViewModel stocke le taux (points/dinar). Pour l'affichage,
+    // on peut le présenter comme "X points pour 1 dinar".
+    double pointsPerDinar = paramViewModel.pointsPerDinar;
+
+    _pointsController.text = pointsPerDinar.toStringAsFixed(2);
     _montantController.text = '1.00';
   }
 
@@ -38,7 +51,6 @@ class _ParametrePageState extends State<ParametrePage> {
     final double montant = double.tryParse(_montantController.text) ?? 0.0;
 
     if (points > 0 && montant > 0) {
-      // MODIFIÉ : Appelle la nouvelle méthode du ViewModel et lui passe les deux valeurs
       Provider.of<ParametreViewModel>(context, listen: false)
           .updateLoyaltySettings(points, montant);
 

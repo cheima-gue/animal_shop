@@ -132,7 +132,7 @@ class _ClientHistoryPageState extends State<ClientHistoryPage> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Commande #${commande.id} - ${formattedDate}',
+                                        'Commande #${commande.id} - $formattedDate',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
@@ -154,7 +154,7 @@ class _ClientHistoryPageState extends State<ClientHistoryPage> {
                                             ],
                                           ),
                                         );
-                                      }).toList(),
+                                      }),
                                       const Divider(),
                                       Row(
                                         mainAxisAlignment:

@@ -1,7 +1,5 @@
 // lib/models/produit.dart
 
-import 'package:flutter/foundation.dart';
-
 class Produit {
   final int? id;
   final String nom;

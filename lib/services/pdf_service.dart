@@ -87,7 +87,7 @@ class PdfService {
                     ),
                   ],
                 );
-              }).toList(),
+              }),
               pw.Divider(),
               pw.SizedBox(height: 10),
               pw.Row(
