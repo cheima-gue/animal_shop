@@ -6,8 +6,8 @@ import '../models/produit.dart';
 import '../models/category.dart';
 import '../models/sub_category.dart';
 import '../models/client.dart';
-import '../models/commande.dart'; // NOUVEL IMPORT
-import '../models/order_item.dart'; // NOUVEL IMPORT
+import '../models/commande.dart';
+import '../models/order_item.dart';
 
 class DatabaseHelper {
   static Database? _database;
@@ -36,7 +36,8 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6, // Incrément de la version pour les nouvelles tables
+        version:
+            7, // Incrément de la version pour les nouvelles colonnes de produits
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE categories(
@@ -61,6 +62,9 @@ class DatabaseHelper {
               codeBarre TEXT UNIQUE NOT NULL,
               subCategoryId INTEGER,
               quantiteEnStock INTEGER NOT NULL DEFAULT 0,
+              coutAchat REAL NOT NULL,
+              tva REAL NOT NULL,
+              marge REAL NOT NULL,
               FOREIGN KEY (subCategoryId) REFERENCES sub_categories(id) ON DELETE CASCADE
             )
           ''');
@@ -73,17 +77,17 @@ class DatabaseHelper {
               loyaltyPoints REAL NOT NULL DEFAULT 0.0
             )
           ''');
-          // NOUVELLES TABLES POUR L'HISTORIQUE
           await db.execute('''
             CREATE TABLE commandes(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               clientId INTEGER,
               dateCommande TEXT,
-              total REAL
+              total REAL,
+              FOREIGN KEY (clientId) REFERENCES clients(id) ON DELETE SET NULL
             )
           ''');
           await db.execute('''
-            CREATE TABLE orderItems(
+            CREATE TABLE order_items(
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               commandeId INTEGER,
               produitId INTEGER,
@@ -95,27 +99,14 @@ class DatabaseHelper {
           ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-          if (oldVersion < 6) {
-            // Création des tables 'commandes' et 'orderItems' si elles n'existent pas
-            await db.execute('''
-              CREATE TABLE IF NOT EXISTS commandes(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                clientId INTEGER,
-                dateCommande TEXT,
-                total REAL
-              )
-            ''');
-            await db.execute('''
-              CREATE TABLE IF NOT EXISTS orderItems(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                commandeId INTEGER,
-                produitId INTEGER,
-                quantity INTEGER,
-                price REAL,
-                FOREIGN KEY (commandeId) REFERENCES commandes(id) ON DELETE CASCADE,
-                FOREIGN KEY (produitId) REFERENCES produits(id) ON DELETE SET NULL
-              )
-            ''');
+          if (oldVersion < 7) {
+            // Ajout des nouvelles colonnes à la table 'produits'
+            await db.execute(
+                'ALTER TABLE produits ADD COLUMN coutAchat REAL NOT NULL DEFAULT 0.0');
+            await db.execute(
+                'ALTER TABLE produits ADD COLUMN tva REAL NOT NULL DEFAULT 0.0');
+            await db.execute(
+                'ALTER TABLE produits ADD COLUMN marge REAL NOT NULL DEFAULT 0.0');
           }
         },
         onConfigure: (db) async {
@@ -274,7 +265,7 @@ class DatabaseHelper {
 
   Future<int> insertOrderItem(OrderItem item) async {
     final db = await database;
-    return await db.insert('orderItems', item.toMap(),
+    return await db.insert('order_items', item.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -290,7 +281,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getOrderItems(int commandeId) async {
     final db = await database;
     return await db.rawQuery('''
-      SELECT oi.*, p.nom, p.image FROM orderItems oi
+      SELECT oi.*, p.nom, p.image FROM order_items oi
       JOIN produits p ON oi.produitId = p.id
       WHERE oi.commandeId = ?
     ''', [commandeId]);

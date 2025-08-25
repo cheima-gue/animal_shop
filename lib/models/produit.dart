@@ -1,13 +1,16 @@
 // lib/models/produit.dart
 
 class Produit {
-  final int? id;
-  final String nom;
-  final double prix;
-  final String? image;
-  final String codeBarre;
-  final int? subCategoryId; // Made nullable
-  int quantiteEnStock; // Made mutable (not final)
+  int? id;
+  String nom;
+  double prix;
+  String? image;
+  String codeBarre;
+  int? subCategoryId;
+  int quantiteEnStock;
+  double coutAchat; // NOUVEAU
+  double tva; // NOUVEAU
+  double marge; // NOUVEAU
 
   Produit({
     this.id,
@@ -17,20 +20,12 @@ class Produit {
     required this.codeBarre,
     this.subCategoryId,
     required this.quantiteEnStock,
+    this.coutAchat = 0.0, // Initialisation par défaut
+    this.tva = 0.0, // Initialisation par défaut
+    this.marge = 0.0, // Initialisation par défaut
   });
 
-  factory Produit.fromMap(Map<String, dynamic> map) {
-    return Produit(
-      id: map['id'],
-      nom: map['nom'],
-      prix: map['prix'],
-      image: map['image'],
-      codeBarre: map['codeBarre'],
-      subCategoryId: map['subCategoryId'],
-      quantiteEnStock: map['quantiteEnStock'],
-    );
-  }
-
+  // Convertir un Produit en Map pour la base de données
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -40,10 +35,29 @@ class Produit {
       'codeBarre': codeBarre,
       'subCategoryId': subCategoryId,
       'quantiteEnStock': quantiteEnStock,
+      'coutAchat': coutAchat, // Ajout de la nouvelle colonne
+      'tva': tva, // Ajout de la nouvelle colonne
+      'marge': marge, // Ajout de la nouvelle colonne
     };
   }
 
-  // ADDED: The copyWith method
+  // Créer un Produit à partir d'une Map de la base de données
+  factory Produit.fromMap(Map<String, dynamic> map) {
+    return Produit(
+      id: map['id'],
+      nom: map['nom'],
+      prix: map['prix'],
+      image: map['image'],
+      codeBarre: map['codeBarre'],
+      subCategoryId: map['subCategoryId'],
+      quantiteEnStock: map['quantiteEnStock'],
+      coutAchat: map['coutAchat'] ??
+          0.0, // Utilisation de ?? pour gérer les anciennes données
+      tva: map['tva'] ?? 0.0, // Utilisation de ??
+      marge: map['marge'] ?? 0.0, // Utilisation de ??
+    );
+  }
+
   Produit copyWith({
     int? id,
     String? nom,
@@ -52,6 +66,9 @@ class Produit {
     String? codeBarre,
     int? subCategoryId,
     int? quantiteEnStock,
+    double? coutAchat,
+    double? tva,
+    double? marge,
   }) {
     return Produit(
       id: id ?? this.id,
@@ -61,6 +78,9 @@ class Produit {
       codeBarre: codeBarre ?? this.codeBarre,
       subCategoryId: subCategoryId ?? this.subCategoryId,
       quantiteEnStock: quantiteEnStock ?? this.quantiteEnStock,
+      coutAchat: coutAchat ?? this.coutAchat,
+      tva: tva ?? this.tva,
+      marge: marge ?? this.marge,
     );
   }
 }

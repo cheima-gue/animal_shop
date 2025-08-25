@@ -8,7 +8,7 @@ import '../models/category.dart';
 import '../models/sub_category.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/category_viewmodel.dart';
-import '../widgets/produit_card.dart';
+import '../widgets/produit_card.dart'; // Assurez-vous que ProduitCard est correct
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 
@@ -25,6 +25,10 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
   final _prixController = TextEditingController();
   final _codeBarreController = TextEditingController();
   final _quantiteEnStockController = TextEditingController();
+  final _coutAchatController = TextEditingController();
+  final _margeController = TextEditingController();
+  double _tva = 0.0;
+
   Category? _selectedCategory;
   SubCategory? _selectedSubCategory;
   String? _imagePath;
@@ -34,6 +38,16 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
   void initState() {
     super.initState();
     _fetchData();
+    _coutAchatController.addListener(_calculatePrix);
+    _margeController.addListener(_calculatePrix);
+  }
+
+  void _calculatePrix() {
+    final double coutAchat = double.tryParse(_coutAchatController.text) ?? 0.0;
+    final double marge = double.tryParse(_margeController.text) ?? 0.0;
+    final double prixHT = coutAchat + (coutAchat * marge / 100);
+    final double prixTTC = prixHT + (prixHT * _tva / 100);
+    _prixController.text = prixTTC.toStringAsFixed(2);
   }
 
   Future<void> _fetchData() async {
@@ -51,6 +65,8 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
     _prixController.dispose();
     _codeBarreController.dispose();
     _quantiteEnStockController.dispose();
+    _coutAchatController.dispose();
+    _margeController.dispose();
     super.dispose();
   }
 
@@ -62,6 +78,11 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _codeBarreController.text = produit.codeBarre;
       _quantiteEnStockController.text = produit.quantiteEnStock.toString();
       _imagePath = produit.image;
+
+      _coutAchatController.text = produit.coutAchat.toString();
+      _margeController.text = produit.marge.toString();
+      _tva = produit.tva;
+      _calculatePrix();
 
       final categoryViewModel =
           Provider.of<CategoryViewModel>(context, listen: false);
@@ -92,10 +113,13 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       _prixController.clear();
       _codeBarreController.clear();
       _quantiteEnStockController.clear();
+      _coutAchatController.clear();
+      _margeController.clear();
       _selectedCategory = null;
       _selectedSubCategory = null;
       _imagePath = null;
       _editingProduit = null;
+      _tva = 0.0;
     });
   }
 
@@ -111,10 +135,10 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
 
   Future<void> _scanBarcode() async {
     String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-      '#ff6666', // Couleur de la ligne de scan
-      'Annuler', // Texte du bouton d'annulation
-      true, // Afficher le flash
-      ScanMode.BARCODE, // Mode de scan (code-barres)
+      '#ff6666',
+      'Annuler',
+      true,
+      ScanMode.BARCODE,
     );
 
     if (!mounted) return;
@@ -137,6 +161,9 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
         codeBarre: _codeBarreController.text,
         subCategoryId: _selectedSubCategory?.id,
         quantiteEnStock: int.tryParse(_quantiteEnStockController.text) ?? 0,
+        coutAchat: double.tryParse(_coutAchatController.text) ?? 0.0,
+        tva: _tva,
+        marge: double.tryParse(_margeController.text) ?? 0.0,
       );
 
       try {
@@ -193,30 +220,21 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
 
   Widget _buildImagePicker() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Image du Produit', style: TextStyle(fontSize: 16)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Container(
-              width: 100,
+        if (_imagePath != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Image.file(
+              File(_imagePath!),
               height: 100,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: _imagePath != null && File(_imagePath!).existsSync()
-                  ? Image.file(File(_imagePath!), fit: BoxFit.cover)
-                  : const Icon(Icons.image, size: 50, color: Colors.grey),
+              width: 100,
+              fit: BoxFit.cover,
             ),
-            const SizedBox(width: 16),
-            ElevatedButton.icon(
-              onPressed: _pickImage,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Sélectionner une image'),
-            ),
-          ],
+          ),
+        ElevatedButton.icon(
+          onPressed: _pickImage,
+          icon: const Icon(Icons.image),
+          label: const Text('Choisir une image'),
         ),
       ],
     );
@@ -252,19 +270,79 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
                 },
               ),
               const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _coutAchatController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Coût d\'achat',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (double.tryParse(value ?? '') == null) {
+                          return 'Nombre invalide';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _margeController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Marge (%)',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (double.tryParse(value ?? '') == null) {
+                          return 'Nombre invalide';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButtonFormField<double>(
+                      value: _tva,
+                      decoration: const InputDecoration(
+                        labelText: 'TVA (%)',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 0.0, child: Text('0%')),
+                        DropdownMenuItem(value: 7.0, child: Text('7%')),
+                        DropdownMenuItem(value: 19.0, child: Text('19%')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _tva = value!;
+                          _calculatePrix();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _prixController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Prix'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Veuillez entrer un prix';
-                  }
-                  if (double.tryParse(value) == null) {
-                    return 'Veuillez entrer un nombre valide';
-                  }
-                  return null;
-                },
+                decoration: InputDecoration(
+                  labelText: 'Prix de vente unitaire (TTC)',
+                  filled: true,
+                  fillColor: Colors.grey[200],
+                  enabledBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey)),
+                  focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey)),
+                ),
+                readOnly: true,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -302,59 +380,68 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
               const SizedBox(height: 16),
               Consumer<CategoryViewModel>(
                 builder: (context, categoryViewModel, child) {
+                  final filteredSubCategories = _selectedCategory != null
+                      ? categoryViewModel.subCategories
+                          .where(
+                              (sub) => sub.categoryId == _selectedCategory!.id)
+                          .toList()
+                      : <SubCategory>[];
+
+                  if (_editingProduit != null &&
+                      _selectedSubCategory != null &&
+                      filteredSubCategories.isEmpty) {
+                    final foundCategory =
+                        categoryViewModel.categories.firstWhere(
+                      (cat) => cat.id == _selectedSubCategory!.categoryId,
+                      orElse: () => Category(nom: '', id: -1),
+                    );
+                    if (foundCategory.id != -1) {
+                      _selectedCategory = foundCategory;
+                    }
+                  }
+
                   return Column(
                     children: [
-                      DropdownButtonFormField<Category>(
-                        value: _selectedCategory,
+                      DropdownButtonFormField<Category?>(
                         decoration:
                             const InputDecoration(labelText: 'Catégorie'),
-                        items: categoryViewModel.categories.map((category) {
-                          return DropdownMenuItem<Category>(
-                            value: category,
-                            child: Text(category.nom),
-                          );
-                        }).toList(),
+                        value: _selectedCategory,
+                        items: [
+                          const DropdownMenuItem(
+                              value: null, child: Text('Aucune')),
+                          ...categoryViewModel.categories
+                              .map((cat) => DropdownMenuItem(
+                                    value: cat,
+                                    child: Text(cat.nom),
+                                  ))
+                        ],
                         onChanged: (Category? newValue) {
                           setState(() {
                             _selectedCategory = newValue;
                             _selectedSubCategory = null;
                           });
                         },
-                        validator: (value) {
-                          if (value == null) {
-                            return 'Veuillez sélectionner une catégorie';
-                          }
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<SubCategory>(
-                        value: _selectedSubCategory,
-                        decoration: const InputDecoration(
-                            labelText: 'Sous-catégorie du Produit'),
-                        items: _selectedCategory == null
-                            ? []
-                            : categoryViewModel.subCategories
-                                .where((sub) =>
-                                    sub.categoryId == _selectedCategory!.id)
-                                .map((subCategory) {
-                                return DropdownMenuItem<SubCategory>(
-                                  value: subCategory,
-                                  child: Text(subCategory.nom),
-                                );
-                              }).toList(),
-                        onChanged: (SubCategory? newValue) {
-                          setState(() {
-                            _selectedSubCategory = newValue;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null) {
-                            return 'Veuillez sélectionner une sous-catégorie';
-                          }
-                          return null;
-                        },
-                      ),
+                      if (filteredSubCategories.isNotEmpty)
+                        DropdownButtonFormField<SubCategory?>(
+                          decoration: const InputDecoration(
+                              labelText: 'Sous-catégorie'),
+                          value: _selectedSubCategory,
+                          items: [
+                            const DropdownMenuItem(
+                                value: null, child: Text('Aucune')),
+                            ...filteredSubCategories
+                                .map((sub) => DropdownMenuItem(
+                                      value: sub,
+                                      child: Text(sub.nom),
+                                    ))
+                          ],
+                          onChanged: (SubCategory? newValue) {
+                            setState(() {
+                              _selectedSubCategory = newValue;
+                            });
+                          },
+                        ),
                     ],
                   );
                 },
@@ -390,20 +477,21 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
     return Consumer<ProduitViewModel>(
       builder: (context, produitViewModel, child) {
         if (produitViewModel.produits.isEmpty) {
-          return const Center(child: Text('Aucun produit n\'a été ajouté.'));
+          return const Center(child: Text('Aucun produit trouvé.'));
         }
         return GridView.builder(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.8,
+            childAspectRatio: 0.75,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
           ),
           itemCount: produitViewModel.produits.length,
           itemBuilder: (context, index) {
             final produit = produitViewModel.produits[index];
             return ProduitCard(
               produit: produit,
+              // Utilisation d'une fonction anonyme pour passer le produit et l'ID
               onEdit: () => _onEditProduit(produit),
               onDelete: () => _confirmDelete(produit.id!),
             );
@@ -419,33 +507,22 @@ class _ProduitHomePageState extends State<ProduitHomePage> {
       appBar: AppBar(
         title: const Text('Gestion des Produits'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 1, child: _buildFormProduit()),
-            const SizedBox(width: 32),
-            const VerticalDivider(width: 1, color: Colors.grey),
-            const SizedBox(width: 32),
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Liste des Produits',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _buildProductList(),
-                  ),
-                ],
-              ),
+      body: Row(
+        children: [
+          // Formulaire d'ajout/modification
+          Expanded(
+            flex: 2,
+            child: _buildFormProduit(),
+          ),
+          // Liste des produits
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildProductList(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

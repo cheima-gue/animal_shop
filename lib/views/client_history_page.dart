@@ -1,5 +1,3 @@
-// lib/views/client_history_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/client.dart';
@@ -35,8 +33,8 @@ class _ClientHistoryPageState extends State<ClientHistoryPage> {
       Commande commande = Commande.fromMap(map);
       final itemsMaps = await _dbHelper.getOrderItems(commande.id!);
 
-      // Reconstitution du modèle Produit pour chaque OrderItem
       commande.items = itemsMaps.map((itemMap) {
+        // CORRECTION ICI: Ajout des nouvelles propriétés au constructeur de Produit
         final produit = Produit(
           id: itemMap['produitId'],
           nom: itemMap['nom'],
@@ -45,6 +43,9 @@ class _ClientHistoryPageState extends State<ClientHistoryPage> {
           subCategoryId: 0,
           image: itemMap['image'],
           codeBarre: '',
+          coutAchat: 0.0, // Valeur par défaut
+          tva: 0.0, // Valeur par défaut
+          marge: 0.0, // Valeur par défaut
         );
         return OrderItem.fromMap(itemMap, produit);
       }).toList();
