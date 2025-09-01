@@ -35,4 +35,21 @@ class Client {
       loyaltyPoints: map['loyaltyPoints'] ?? 0.0,
     );
   }
+
+  // Ajout de la méthode copyWith
+  Client copyWith({
+    int? id,
+    String? firstName,
+    String? lastName,
+    String? tel,
+    double? loyaltyPoints,
+  }) {
+    return Client(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      tel: tel ?? this.tel,
+      loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
+    );
+  }
 }

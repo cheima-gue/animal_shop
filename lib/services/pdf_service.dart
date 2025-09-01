@@ -1,33 +1,36 @@
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+// lib/services/pdf_service.dart
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../viewmodels/produit_viewmodel.dart';
-import '../models/client.dart';
-import 'database_helper.dart';
+import '../viewmodels/commande_viewmodel.dart';
 
 class PdfService {
-  Future<void> generateAndPrintTicketPdf(ProduitViewModel produitViewModel,
-      double montantRecu, double monnaieARendre) async {
+  Future<void> generateAndPrintTicketPdf(
+      CommandeViewModel commandeViewModel,
+      double montantRecu,
+      double monnaieARendre,
+      double newLoyaltyPoints) async {
     final doc = pw.Document();
 
-    final cartItems = produitViewModel.cartItems.values.toList();
-    final client = produitViewModel.selectedClient;
-    final total = produitViewModel.totalPrice;
-    final subtotal = produitViewModel.subtotal;
+    final cartItems = commandeViewModel.cartItems.values.toList();
+    final client = commandeViewModel.selectedClient;
+    final total = commandeViewModel.total;
+    final subtotal = commandeViewModel.subtotal;
+    final loyaltyDiscount = commandeViewModel.loyaltyDiscount;
+    final loyaltyPointsEarned = commandeViewModel.loyaltyPointsEarned;
+    final loyaltyPointsUsed = commandeViewModel.loyaltyPointsUsed;
 
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, // Format de rouleau de caisse
+        pageFormat: PdfPageFormat.roll80,
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Center(
                 child: pw.Text(
-                  'CHICO PETS', // Nom de votre entreprise
+                  'CHICO PETS',
                   style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold, fontSize: 18),
                 ),
@@ -49,8 +52,10 @@ class PdfService {
               if (client != null) ...[
                 pw.SizedBox(height: 5),
                 pw.Text('Client: ${client.firstName} ${client.lastName}'),
-                if (client.loyaltyPoints > 0)
-                  pw.Text('Points: ${client.loyaltyPoints.toStringAsFixed(2)}'),
+                // Display the new total of loyalty points after the transaction
+                if (newLoyaltyPoints >= 0)
+                  pw.Text(
+                      'Nouveaux Points: ${newLoyaltyPoints.toStringAsFixed(2)}'),
               ],
               pw.Divider(),
               pw.Row(
@@ -98,6 +103,14 @@ class PdfService {
                   pw.Text('${subtotal.toStringAsFixed(2)} DT'),
                 ],
               ),
+              if (loyaltyDiscount > 0)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('Réduction fidélité:'),
+                    pw.Text('-${loyaltyDiscount.toStringAsFixed(2)} DT'),
+                  ],
+                ),
               pw.SizedBox(height: 5),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -127,6 +140,25 @@ class PdfService {
                 ],
               ),
               pw.SizedBox(height: 20),
+              if (client != null) ...[
+                if (loyaltyPointsEarned > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Points gagnés:'),
+                      pw.Text('+${loyaltyPointsEarned.toStringAsFixed(2)} pts'),
+                    ],
+                  ),
+                if (loyaltyPointsUsed > 0)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Points utilisés:'),
+                      pw.Text('-${loyaltyPointsUsed.toStringAsFixed(2)} pts'),
+                    ],
+                  ),
+              ],
+              pw.SizedBox(height: 10),
               pw.Center(
                 child: pw.Text('Merci pour votre visite',
                     style: const pw.TextStyle(fontSize: 14)),
@@ -141,7 +173,6 @@ class PdfService {
       ),
     );
 
-    // Partager le PDF
     await Printing.sharePdf(
         bytes: await doc.save(), filename: 'ticket_de_caisse.pdf');
   }

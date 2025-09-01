@@ -1,97 +1,131 @@
-// lib/viewmodels/cart_viewmodel.dart :
+// lib/viewmodels/cart_viewmodel.dart
 
 import 'package:flutter/material.dart';
-import '../models/order_item.dart'; //article dans le panier
+import '../models/order_item.dart';
 import '../models/produit.dart';
 
 class CartViewModel extends ChangeNotifier {
-  //observateur : quand le panier change on appelle notifylisteners
   final Map<int, OrderItem> _items = {};
 
   List<OrderItem> get items => _items.values.toList();
 
   double get totalPrice {
-    return _items.values
-        .fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+    return _items.values.fold(0.0, (sum, item) => sum + item.subtotal);
   }
 
   void addItem(Produit produit) {
-    if (_items.containsKey(produit.id)) {
-      _items.update(
-          produit.id!,
-          (item) => OrderItem(
-              produit: item.produit,
-              quantity: item.quantity + 1,
-              price: item.price));
-    } else {
-      _items.putIfAbsent(produit.id!,
-          () => OrderItem(produit: produit, quantity: 1, price: produit.prix));
-    }
-    notifyListeners();
-  }
+    if (produit.id == null) return;
 
-  // NOUVELLE MÉTHODE : Permet d'ajouter une quantité spécifique
-  void addItemWithQuantity(Produit produit, int quantity) {
     if (_items.containsKey(produit.id)) {
       _items.update(
-          produit.id!,
-          (item) => OrderItem(
-              produit: item.produit,
-              quantity: item.quantity + quantity,
-              price: item.price));
+        produit.id!,
+        (item) => OrderItem(
+          productId: item.productId,
+          quantity: item.quantity + 1,
+          price: item.price,
+          subtotal: item.price * (item.quantity + 1),
+        ),
+      );
     } else {
       _items.putIfAbsent(
-          produit.id!,
-          () => OrderItem(
-              produit: produit, quantity: quantity, price: produit.prix));
+        produit.id!,
+        () => OrderItem(
+          productId: produit.id!,
+          quantity: 1,
+          price: produit.prix,
+          subtotal: produit.prix * 1,
+        ),
+      );
     }
     notifyListeners();
   }
 
-  void updateItemQuantity(int produitId, int quantity) {
-    if (_items.containsKey(produitId)) {
-      if (quantity > 0) {
-        _items.update(
-            produitId,
-            (item) => OrderItem(
-                produit: item.produit, quantity: quantity, price: item.price));
-      } else {
-        _items.remove(produitId);
-      }
-      notifyListeners();
-    }
-  }
+  void addItemWithQuantity(Produit produit, int quantity) {
+    if (produit.id == null || quantity <= 0) return;
 
-  void increaseQuantity(int produitId) {
-    if (_items.containsKey(produitId)) {
+    if (_items.containsKey(produit.id)) {
+      final currentItem = _items[produit.id]!;
       _items.update(
-          produitId,
-          (item) => OrderItem(
-              produit: item.produit,
-              quantity: item.quantity + 1,
-              price: item.price));
-      notifyListeners();
+        produit.id!,
+        (item) => OrderItem(
+          productId: item.productId,
+          quantity: currentItem.quantity + quantity,
+          price: item.price,
+          subtotal: item.price * (currentItem.quantity + quantity),
+        ),
+      );
+    } else {
+      _items.putIfAbsent(
+        produit.id!,
+        () => OrderItem(
+          productId: produit.id!,
+          quantity: quantity,
+          price: produit.prix,
+          subtotal: produit.prix * quantity,
+        ),
+      );
     }
+    notifyListeners();
   }
 
-  void decreaseQuantity(int produitId) {
-    if (_items.containsKey(produitId)) {
-      if (_items[produitId]!.quantity > 1) {
+  void updateItemQuantity(int productId, int quantity) {
+    if (_items.containsKey(productId)) {
+      if (quantity > 0) {
+        final item = _items[productId]!;
         _items.update(
-            produitId,
-            (item) => OrderItem(
-                produit: item.produit,
-                quantity: item.quantity - 1,
-                price: item.price));
+          productId,
+          (oldItem) => OrderItem(
+            productId: item.productId,
+            quantity: quantity,
+            price: item.price,
+            subtotal: item.price * quantity,
+          ),
+        );
       } else {
-        _items.remove(produitId);
+        _items.remove(productId);
       }
       notifyListeners();
     }
   }
 
-  void removeItem(int produitId) {
-    _items.remove(produitId);
+  void increaseQuantity(int productId) {
+    if (_items.containsKey(productId)) {
+      final item = _items[productId]!;
+      _items.update(
+        productId,
+        (oldItem) => OrderItem(
+          productId: item.productId,
+          quantity: item.quantity + 1,
+          price: item.price,
+          subtotal: item.price * (item.quantity + 1),
+        ),
+      );
+      notifyListeners();
+    }
+  }
+
+  void decreaseQuantity(int productId) {
+    if (_items.containsKey(productId)) {
+      final item = _items[productId]!;
+      if (item.quantity > 1) {
+        _items.update(
+          productId,
+          (oldItem) => OrderItem(
+            productId: item.productId,
+            quantity: item.quantity - 1,
+            price: item.price,
+            subtotal: item.price * (item.quantity - 1),
+          ),
+        );
+      } else {
+        _items.remove(productId);
+      }
+      notifyListeners();
+    }
+  }
+
+  void removeItem(int productId) {
+    _items.remove(productId);
     notifyListeners();
   }
 

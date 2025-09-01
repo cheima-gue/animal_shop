@@ -14,11 +14,10 @@ class CategoryManagementPage extends StatefulWidget {
 }
 
 class _CategoryManagementPageState extends State<CategoryManagementPage> {
-  final _categoryController = TextEditingController();
-  final _subCategoryController = TextEditingController();
-  Category? _selectedCategory;
-  Category? _editingCategory;
-  SubCategory? _editingSubCategory;
+  final _formKey = GlobalKey<FormState>();
+  final _categoryNameController = TextEditingController();
+  final _subCategoryNameController = TextEditingController();
+  Category? _selectedParentCategory;
 
   @override
   void initState() {
@@ -32,311 +31,179 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
 
   @override
   void dispose() {
-    _categoryController.dispose();
-    _subCategoryController.dispose();
+    _categoryNameController.dispose();
+    _subCategoryNameController.dispose();
     super.dispose();
   }
 
-  void _onSaveCategory() {
-    if (_categoryController.text.isNotEmpty) {
-      final categoryViewModel =
-          Provider.of<CategoryViewModel>(context, listen: false);
-      if (_editingCategory == null) {
-        final newCategory = Category(nom: _categoryController.text);
-        categoryViewModel.addCategory(newCategory);
+  void _addCategory() {
+    if (_formKey.currentState!.validate()) {
+      if (_selectedParentCategory == null) {
+        final newCategory = Category(nom: _categoryNameController.text);
+        Provider.of<CategoryViewModel>(context, listen: false)
+            .addCategory(newCategory);
       } else {
-        final updatedCategory = Category(
-          id: _editingCategory!.id,
-          nom: _categoryController.text,
-        );
-        categoryViewModel.updateCategory(updatedCategory);
-      }
-      _clearCategoryForm();
-    }
-  }
-
-  void _clearCategoryForm() {
-    _categoryController.clear();
-    setState(() {
-      _editingCategory = null;
-    });
-  }
-
-  void _onEditCategory(Category category) {
-    setState(() {
-      _editingCategory = category;
-      _categoryController.text = category.nom;
-    });
-  }
-
-  Future<void> _onDeleteCategory(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Supprimer la catégorie'),
-        content: const Text(
-            'Êtes-vous sûr de vouloir supprimer cette catégorie et toutes ses sous-catégories ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await Provider.of<CategoryViewModel>(context, listen: false)
-          .deleteCategory(id);
-    }
-  }
-
-  void _onSaveSubCategory() {
-    if (_subCategoryController.text.isNotEmpty && _selectedCategory != null) {
-      final categoryViewModel =
-          Provider.of<CategoryViewModel>(context, listen: false);
-      if (_editingSubCategory == null) {
         final newSubCategory = SubCategory(
-          nom: _subCategoryController.text,
-          categoryId: _selectedCategory!.id!,
+          nom: _subCategoryNameController.text,
+          categoryId: _selectedParentCategory!.id!,
         );
-        categoryViewModel.addSubCategory(newSubCategory);
-      } else {
-        final updatedSubCategory = SubCategory(
-          id: _editingSubCategory!.id,
-          nom: _subCategoryController.text,
-          categoryId: _selectedCategory!.id!,
-        );
-        categoryViewModel.updateSubCategory(updatedSubCategory);
+        Provider.of<CategoryViewModel>(context, listen: false)
+            .addSubCategory(newSubCategory);
       }
-      _clearSubCategoryForm();
+      _categoryNameController.clear();
+      _subCategoryNameController.clear();
+      setState(() {
+        _selectedParentCategory = null; // Reset selection
+      });
     }
   }
 
-  void _clearSubCategoryForm() {
-    _subCategoryController.clear();
-    setState(() {
-      _editingSubCategory = null;
-      _selectedCategory = null;
-    });
-  }
-
-  void _onEditSubCategory(SubCategory subCategory) {
-    setState(() {
-      _editingSubCategory = subCategory;
-      _subCategoryController.text = subCategory.nom;
-      _selectedCategory = context
-          .read<CategoryViewModel>()
+  void _editCategory(dynamic item) {
+    if (item is Category) {
+      _categoryNameController.text = item.nom;
+      setState(() {
+        _selectedParentCategory = null;
+      });
+    } else if (item is SubCategory) {
+      _subCategoryNameController.text = item.nom;
+      final parentCat = Provider.of<CategoryViewModel>(context, listen: false)
           .categories
-          .firstWhere((cat) => cat.id == subCategory.categoryId);
-    });
-  }
-
-  Future<void> _onDeleteSubCategory(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Supprimer la sous-catégorie'),
-        content: const Text(
-            'Êtes-vous sûr de vouloir supprimer cette sous-catégorie ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await Provider.of<CategoryViewModel>(context, listen: false)
-          .deleteSubCategory(id);
+          .firstWhere((cat) => cat.id == item.categoryId);
+      setState(() {
+        _selectedParentCategory = parentCat;
+      });
     }
-  }
 
-  Widget _buildCategoryForm() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _editingCategory == null
-                      ? 'Ajouter une Catégorie'
-                      : 'Modifier la Catégorie',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                if (_editingCategory != null)
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _clearCategoryForm,
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(item is Category
+              ? 'Modifier la catégorie'
+              : 'Modifier la sous-catégorie'),
+          content: Form(
+            key: _formKey,
+            child: item is Category
+                ? TextFormField(
+                    controller: _categoryNameController,
+                    decoration:
+                        const InputDecoration(labelText: 'Nom de la catégorie'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Veuillez entrer un nom de catégorie';
+                      }
+                      return null;
+                    },
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: _subCategoryNameController,
+                        decoration: const InputDecoration(
+                            labelText: 'Nom de la sous-catégorie'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez entrer un nom de sous-catégorie';
+                          }
+                          return null;
+                        },
+                      ),
+                      Consumer<CategoryViewModel>(
+                        builder: (context, categoryViewModel, child) {
+                          return DropdownButtonFormField<Category>(
+                            decoration: const InputDecoration(
+                                labelText: 'Catégorie parente'),
+                            value: _selectedParentCategory,
+                            items: categoryViewModel.categories
+                                .map((cat) => DropdownMenuItem(
+                                      value: cat,
+                                      child: Text(cat.nom),
+                                    ))
+                                .toList(),
+                            onChanged: (Category? newValue) {
+                              setState(() {
+                                _selectedParentCategory = newValue;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ],
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _categoryController,
-              decoration: const InputDecoration(
-                labelText: 'Nom de la Catégorie',
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _onSaveCategory,
-              icon: Icon(_editingCategory == null ? Icons.add : Icons.save),
-              label: Text(_editingCategory == null
-                  ? 'Ajouter Catégorie'
-                  : 'Sauvegarder'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubCategoryForm(CategoryViewModel categoryViewModel) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _editingSubCategory == null
-                      ? 'Ajouter une Sous-Catégorie'
-                      : 'Modifier la Sous-Catégorie',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                if (_editingSubCategory != null)
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: _clearSubCategoryForm,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<Category>(
-              decoration: const InputDecoration(labelText: 'Catégorie Parent'),
-              value: _selectedCategory,
-              items: categoryViewModel.categories.map((category) {
-                return DropdownMenuItem<Category>(
-                  value: category,
-                  child: Text(category.nom),
-                );
-              }).toList(),
-              onChanged: (Category? newValue) {
-                setState(() {
-                  _selectedCategory = newValue;
-                });
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _categoryNameController.clear();
+                _subCategoryNameController.clear();
               },
+              child: const Text('Annuler'),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _subCategoryController,
-              decoration: const InputDecoration(
-                labelText: 'Nom de la Sous-Catégorie',
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _onSaveSubCategory,
-              icon: Icon(_editingSubCategory == null ? Icons.add : Icons.save),
-              label: Text(_editingSubCategory == null
-                  ? 'Ajouter Sous-Catégorie'
-                  : 'Sauvegarder'),
+            ElevatedButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  if (item is Category) {
+                    final updatedCategory =
+                        item.copyWith(nom: _categoryNameController.text);
+                    Provider.of<CategoryViewModel>(context, listen: false)
+                        .updateCategory(updatedCategory);
+                  } else if (item is SubCategory) {
+                    final updatedSubCategory = item.copyWith(
+                      nom: _subCategoryNameController.text,
+                      categoryId: _selectedParentCategory!.id,
+                    );
+                    Provider.of<CategoryViewModel>(context, listen: false)
+                        .updateSubCategory(updatedSubCategory);
+                  }
+                  Navigator.of(context).pop();
+                  _categoryNameController.clear();
+                  _subCategoryNameController.clear();
+                }
+              },
+              child: const Text('Enregistrer'),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildCategoryList(CategoryViewModel categoryViewModel) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics:
-            const NeverScrollableScrollPhysics(), // Important pour éviter les conflits de défilement
-        itemCount: categoryViewModel.categories.length,
-        itemBuilder: (context, index) {
-          final category = categoryViewModel.categories[index];
-          return ListTile(
-            title: Text(category.nom),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _onEditCategory(category),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _onDeleteCategory(category.id!),
-                ),
-              ],
+  void _deleteCategory(dynamic item) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(item is Category
+              ? 'Supprimer la catégorie'
+              : 'Supprimer la sous-catégorie'),
+          content: Text('Êtes-vous sûr de vouloir supprimer "${item.nom}" ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Annuler'),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSubCategoryList(CategoryViewModel categoryViewModel) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(), // Important
-        itemCount: categoryViewModel.subCategories.length,
-        itemBuilder: (context, index) {
-          final subCategory = categoryViewModel.subCategories[index];
-          final parentCategory = categoryViewModel.categories.firstWhere(
-            (cat) => cat.id == subCategory.categoryId,
-            orElse: () => Category(nom: 'Inconnue'),
-          );
-          return ListTile(
-            title: Text(subCategory.nom),
-            subtitle: Text('Catégorie: ${parentCategory.nom}'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  onPressed: () => _onEditSubCategory(subCategory),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _onDeleteSubCategory(subCategory.id!),
-                ),
-              ],
+            ElevatedButton(
+              onPressed: () {
+                if (item is Category) {
+                  Provider.of<CategoryViewModel>(context, listen: false)
+                      .deleteCategory(item.id!);
+                } else if (item is SubCategory) {
+                  Provider.of<CategoryViewModel>(context, listen: false)
+                      .deleteSubCategory(item.id!);
+                }
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text('${item.nom} a été supprimé avec succès!')),
+                );
+              },
+              child: const Text('Supprimer'),
             ),
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -344,60 +211,157 @@ class _CategoryManagementPageState extends State<CategoryManagementPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gestion des Catégories'),
+        title: const Text('Gestion des catégories'),
+        backgroundColor: Theme.of(context).primaryColor,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Consumer<CategoryViewModel>(
-          builder: (context, categoryViewModel, child) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 1,
-                  child: SingleChildScrollView(
-                    // Ajout du défilement ici pour le panneau de gauche
-                    child: Column(
-                      children: [
-                        _buildCategoryForm(),
-                        const SizedBox(height: 24),
-                        _buildSubCategoryForm(categoryViewModel),
-                      ],
-                    ),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Ajouter une nouvelle catégorie/sous-catégorie',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      Consumer<CategoryViewModel>(
+                        builder: (context, categoryViewModel, child) {
+                          return DropdownButtonFormField<Category>(
+                            decoration: const InputDecoration(
+                                labelText: 'Sélectionner la catégorie parente'),
+                            value: _selectedParentCategory,
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text('Aucune (catégorie principale)'),
+                              ),
+                              ...categoryViewModel.categories
+                                  .map((cat) => DropdownMenuItem(
+                                        value: cat,
+                                        child: Text(cat.nom),
+                                      ))
+                                  .toList(),
+                            ],
+                            onChanged: (Category? newValue) {
+                              setState(() {
+                                _selectedParentCategory = newValue;
+                                if (newValue != null) {
+                                  _categoryNameController.clear();
+                                } else {
+                                  _subCategoryNameController.clear();
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      if (_selectedParentCategory == null)
+                        TextFormField(
+                          controller: _categoryNameController,
+                          decoration: const InputDecoration(
+                              labelText:
+                                  'Nom de la nouvelle catégorie principale'),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer un nom';
+                            }
+                            return null;
+                          },
+                        )
+                      else
+                        TextFormField(
+                          controller: _subCategoryNameController,
+                          decoration: const InputDecoration(
+                              labelText: 'Nom de la nouvelle sous-catégorie'),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Veuillez entrer un nom';
+                            }
+                            return null;
+                          },
+                        ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _addCategory,
+                        child: const Text('Ajouter'),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 32),
-                const VerticalDivider(width: 1, color: Colors.grey),
-                const SizedBox(width: 32),
-                Expanded(
-                  flex: 2,
-                  child: SingleChildScrollView(
-                    // Ajout du défilement ici pour le panneau de droite
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Catégories',
-                          style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: Consumer<CategoryViewModel>(
+                builder: (context, categoryViewModel, child) {
+                  if (categoryViewModel.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final allItems = [
+                    ...categoryViewModel.categories,
+                    ...categoryViewModel.subCategories
+                  ];
+
+                  if (allItems.isEmpty) {
+                    return const Center(
+                        child: Text(
+                            'Aucune catégorie ou sous-catégorie trouvée.'));
+                  }
+
+                  return ListView.builder(
+                    itemCount: allItems.length,
+                    itemBuilder: (context, index) {
+                      final item = allItems[index];
+                      String name = '';
+                      String? subtitle;
+
+                      if (item is Category) {
+                        name = item.nom;
+                      } else if (item is SubCategory) {
+                        name = item.nom;
+                        final parentCategory = categoryViewModel.categories
+                            .firstWhere((cat) => cat.id == item.categoryId);
+                        subtitle = 'Sous-catégorie de ${parentCategory.nom}';
+                      }
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        child: ListTile(
+                          title: Text(name),
+                          subtitle: subtitle != null ? Text(subtitle) : null,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.edit, color: Colors.amber),
+                                onPressed: () => _editCategory(item),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteCategory(item),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        _buildCategoryList(categoryViewModel),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Sous-Catégories',
-                          style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSubCategoryList(categoryViewModel),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,186 +1,74 @@
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../models/client.dart';
-import '../models/commande.dart'; // NOUVEL IMPORT
-import '../models/order_item.dart'; // NOUVEL IMPORT
-import '../services/database_helper.dart'; // NOUVEL IMPORT
-import '../models/produit.dart'; // NOUVEL IMPORT
+// lib/views/client_history_page.dart
 
-class ClientHistoryPage extends StatefulWidget {
+import 'package:flutter/material.dart';
+import '../models/client.dart';
+import '../models/commande.dart';
+import '../services/database_helper.dart';
+
+class ClientHistoryPage extends StatelessWidget {
   final Client client;
 
   const ClientHistoryPage({super.key, required this.client});
 
   @override
-  State<ClientHistoryPage> createState() => _ClientHistoryPageState();
-}
-
-class _ClientHistoryPageState extends State<ClientHistoryPage> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-  List<Commande> _commandes = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchHistory();
-  }
-
-  Future<void> _fetchHistory() async {
-    final commandesMaps = await _dbHelper.getClientHistory(widget.client.id!);
-    List<Commande> tempCommandes = [];
-    for (var map in commandesMaps) {
-      Commande commande = Commande.fromMap(map);
-      final itemsMaps = await _dbHelper.getOrderItems(commande.id!);
-
-      commande.items = itemsMaps.map((itemMap) {
-        // CORRECTION ICI: Ajout des nouvelles propriétés au constructeur de Produit
-        final produit = Produit(
-          id: itemMap['produitId'],
-          nom: itemMap['nom'],
-          prix: itemMap['price'], // Le prix de l'item au moment de l'achat
-          quantiteEnStock: itemMap['quantity'], // Quantité achetée
-          subCategoryId: 0,
-          image: itemMap['image'],
-          codeBarre: '',
-          coutAchat: 0.0, // Valeur par défaut
-          tva: 0.0, // Valeur par défaut
-          marge: 0.0, // Valeur par défaut
-        );
-        return OrderItem.fromMap(itemMap, produit);
-      }).toList();
-
-      tempCommandes.add(commande);
-    }
-
-    setState(() {
-      _commandes = tempCommandes;
-      _isLoading = false;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-            'Historique de ${widget.client.firstName} ${widget.client.lastName}'),
-        backgroundColor: Theme.of(context).primaryColor,
+        title: Text('Historique de ${client.firstName} ${client.lastName}'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Informations du client',
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Text(
-                        'Nom: ${widget.client.firstName} ${widget.client.lastName}',
-                        style: const TextStyle(fontSize: 16)),
-                    Text('Téléphone: ${widget.client.tel}',
-                        style: const TextStyle(fontSize: 16)),
-                    Text(
-                        'Points de fidélité: ${widget.client.loyaltyPoints.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text('Historique des achats',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const Divider(),
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Expanded(
-                    child: _commandes.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'Aucun historique de transaction trouvé pour ce client.',
-                              style:
-                                  TextStyle(fontSize: 16, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _commandes.length,
-                            itemBuilder: (context, index) {
-                              final commande = _commandes[index];
-                              final date =
-                                  DateTime.parse(commande.dateCommande!);
-                              final formattedDate =
-                                  DateFormat('dd/MM/yyyy à HH:mm').format(date);
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: DatabaseHelper().getClientHistory(client.id!),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Erreur: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('Aucune commande trouvée.'));
+          }
 
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 16.0),
-                                elevation: 2,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Commande #${commande.id} - $formattedDate',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                            color: Colors.purple),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      ...commande.items.map((item) {
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 4.0),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                  '${item.produit.nom} x ${item.quantity}'),
-                                              Text(
-                                                  '${(item.price * item.quantity).toStringAsFixed(2)} DT'),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                      const Divider(),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text('Total Commande:',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold)),
-                                          Text(
-                                            '${commande.total!.toStringAsFixed(2)} DT',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.teal),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+          final commandes = snapshot.data!;
+          return ListView.builder(
+            itemCount: commandes.length,
+            itemBuilder: (context, index) {
+              final commande = Commande.fromMap(commandes[index]);
+              return ExpansionTile(
+                title: Text(
+                    'Commande du ${commande.dateCommande.substring(0, 10)}'),
+                subtitle:
+                    Text('Total: ${commande.total.toStringAsFixed(2)} TND'),
+                children: [
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: DatabaseHelper().getOrderItems(commande.id!),
+                    builder: (context, itemSnapshot) {
+                      if (itemSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const LinearProgressIndicator();
+                      } else if (itemSnapshot.hasError) {
+                        return const Text('Erreur de chargement des articles.');
+                      }
+
+                      final items = itemSnapshot.data!;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: items.map((item) {
+                            return ListTile(
+                              title: Text(item['nom'] ?? 'Produit inconnu'),
+                              trailing: Text(
+                                  '${item['quantity']} x ${item['price']} TND'),
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    },
                   ),
-          ],
-        ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }

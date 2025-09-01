@@ -2,16 +2,23 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../models/produit.dart';
 import '../models/sub_category.dart';
+
 import '../viewmodels/category_viewmodel.dart';
 import '../viewmodels/produit_viewmodel.dart';
+import '../viewmodels/commande_viewmodel.dart';
+
 import '../widgets/produit_card.dart';
+
+// Corrected import paths
+import 'caisse_page.dart';
+import 'category_management_page.dart';
+import 'client_management_page.dart';
 import 'order_page.dart';
 import 'produit_home_page.dart';
-import 'category_management_page.dart';
 import 'produit_list_page.dart';
-import 'caisse_page.dart';
-import 'client_management_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -26,9 +33,9 @@ class _HomePageState extends State<HomePage> {
   final List<Widget> _pages = [
     const _HomePageContent(),
     const ProduitHomePage(),
-    const CategoryManagementPage(),
+    CategoryManagementPage(),
     const CaissePage(),
-    const ClientManagementPage(),
+    ClientManagementPage(),
   ];
 
   void _onItemTapped(int index) {
@@ -109,10 +116,10 @@ class _HomePageContent extends StatelessWidget {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.phone, color: Colors.grey, size: 16),
               SizedBox(width: 8),
@@ -127,21 +134,20 @@ class _HomePageContent extends StatelessWidget {
           ),
           Row(
             children: [
-              const Text('Bienvenue, ',
+              Text('Bienvenue, ',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
               TextButton(
-                onPressed: () {},
-                child: const Text('Connexion',
+                onPressed: null, // Disabled for simplicity
+                child: Text('Connexion',
                     style: TextStyle(
                         fontSize: 12,
                         color: Colors.black,
                         fontWeight: FontWeight.bold)),
               ),
-              const Text(' ou ',
-                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(' ou ', style: TextStyle(fontSize: 12, color: Colors.grey)),
               TextButton(
-                onPressed: () {},
-                child: const Text('Créez votre compte',
+                onPressed: null, // Disabled for simplicity
+                child: Text('Créez votre compte',
                     style: TextStyle(
                         fontSize: 12,
                         color: Colors.black,
@@ -206,9 +212,9 @@ class _HomePageContent extends StatelessWidget {
                   MaterialPageRoute(builder: (context) => const OrderPage()));
             },
             icon: const Icon(Icons.shopping_cart, color: Colors.teal),
-            label: Consumer<ProduitViewModel>(
-              builder: (context, produitViewModel, child) {
-                final totalItems = produitViewModel.cartItems.length;
+            label: Consumer<CommandeViewModel>(
+              builder: (context, commandeViewModel, child) {
+                final totalItems = commandeViewModel.cartItems.length;
                 return Text(
                   'Panier: $totalItems Produits',
                   style: const TextStyle(color: Colors.black),
@@ -347,22 +353,30 @@ class _HomePageContent extends StatelessWidget {
                       onEdit: null,
                       onDelete: null,
                       onAddToCart: (p) async {
-                        final success = await produitViewModel
-                            .addProductByBarcode(p.codeBarre);
+                        final commandeViewModel =
+                            Provider.of<CommandeViewModel>(context,
+                                listen: false);
+                        final success =
+                            await commandeViewModel.addProductByBarcode(p);
                         if (success) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
                                 content:
-                                    Text('${p.nom} a été ajouté au panier')),
-                          );
+                                    Text('${p.nom} a été ajouté au panier'),
+                              ),
+                            );
+                          }
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content:
-                                  Text('Stock insuffisant pour ce produit.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('Stock insuffisant pour ce produit.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
                         }
                       },
                     );

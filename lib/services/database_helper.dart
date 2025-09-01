@@ -8,6 +8,7 @@ import '../models/sub_category.dart';
 import '../models/client.dart';
 import '../models/commande.dart';
 import '../models/order_item.dart';
+import '../models/parametre.dart';
 
 class DatabaseHelper {
   static Database? _database;
@@ -36,8 +37,7 @@ class DatabaseHelper {
     return await databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version:
-            7, // Incrément de la version pour les nouvelles colonnes de produits
+        version: 8,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE categories(
@@ -97,16 +97,63 @@ class DatabaseHelper {
               FOREIGN KEY (produitId) REFERENCES produits(id) ON DELETE SET NULL
             )
           ''');
+          await db.execute('''
+            CREATE TABLE parametres(
+              id INTEGER PRIMARY KEY,
+              pointsParDinar REAL NOT NULL,
+              valeurDinar REAL NOT NULL,
+              margeBeneficiaire REAL NOT NULL
+            )
+          ''');
         },
         onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 8) {
+            // Check if 'parametres' table exists before creating it
+            var table = await db.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='parametres'");
+            if (table.isEmpty) {
+              await db.execute('''
+                CREATE TABLE parametres(
+                  id INTEGER PRIMARY KEY,
+                  pointsParDinar REAL NOT NULL,
+                  valeurDinar REAL NOT NULL,
+                  margeBeneficiaire REAL NOT NULL
+                )
+              ''');
+            }
+
+            // Check if columns exist before adding them
+            var columns = await db.rawQuery('PRAGMA table_info(produits)');
+            var columnNames = columns.map((e) => e['name']).toList();
+            if (!columnNames.contains('coutAchat')) {
+              await db.execute(
+                  'ALTER TABLE produits ADD COLUMN coutAchat REAL NOT NULL DEFAULT 0.0');
+            }
+            if (!columnNames.contains('tva')) {
+              await db.execute(
+                  'ALTER TABLE produits ADD COLUMN tva REAL NOT NULL DEFAULT 0.0');
+            }
+            if (!columnNames.contains('marge')) {
+              await db.execute(
+                  'ALTER TABLE produits ADD COLUMN marge REAL NOT NULL DEFAULT 0.0');
+            }
+          }
           if (oldVersion < 7) {
-            // Ajout des nouvelles colonnes à la table 'produits'
-            await db.execute(
-                'ALTER TABLE produits ADD COLUMN coutAchat REAL NOT NULL DEFAULT 0.0');
-            await db.execute(
-                'ALTER TABLE produits ADD COLUMN tva REAL NOT NULL DEFAULT 0.0');
-            await db.execute(
-                'ALTER TABLE produits ADD COLUMN marge REAL NOT NULL DEFAULT 0.0');
+            var table = await db.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='order_items'");
+            if (table.isEmpty) {
+              await db.execute('''
+                CREATE TABLE order_items(
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  commandeId INTEGER,
+                  produitId INTEGER,
+                  quantity INTEGER,
+                  price REAL,
+                  FOREIGN KEY (commandeId) REFERENCES commandes(id) ON DELETE CASCADE,
+                  FOREIGN KEY (produitId) REFERENCES produits(id) ON DELETE SET NULL
+                )
+              ''');
+            }
           }
         },
         onConfigure: (db) async {
@@ -134,6 +181,19 @@ class DatabaseHelper {
     final db = await database;
     final maps = await db.query('produits');
     return maps.map((map) => Produit.fromMap(map)).toList();
+  }
+
+  Future<Produit?> getProduitById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'produits',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return Produit.fromMap(maps.first);
+    }
+    return null;
   }
 
   Future<int> updateProduit(Produit produit) async {
@@ -243,6 +303,19 @@ class DatabaseHelper {
     });
   }
 
+  Future<Client?> getClientById(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'clients',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (maps.isNotEmpty) {
+      return Client.fromMap(maps.first);
+    }
+    return null;
+  }
+
   Future<Client?> getClientByTel(String tel) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -256,7 +329,16 @@ class DatabaseHelper {
     return null;
   }
 
-  // ---------------- NOUVELLES MÉTHODES POUR L'HISTORIQUE ----------------
+  Future<void> deleteClient(int id) async {
+    final db = await database;
+    await db.delete(
+      'clients',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ---------------- MÉTHODES POUR L'HISTORIQUE ----------------
   Future<int> insertCommande(Commande commande) async {
     final db = await database;
     return await db.insert('commandes', commande.toMap(),
@@ -285,5 +367,34 @@ class DatabaseHelper {
       JOIN produits p ON oi.produitId = p.id
       WHERE oi.commandeId = ?
     ''', [commandeId]);
+  }
+
+  // ---------------- MÉTHODES POUR LES PARAMETRES ----------------
+  Future<void> insertParametres(Parametre parametre) async {
+    final db = await database;
+    await db.insert(
+      'parametres',
+      parametre.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Parametre?> getParametres() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('parametres');
+    if (maps.isNotEmpty) {
+      return Parametre.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<void> updateParametres(Parametre parametre) async {
+    final db = await database;
+    await db.update(
+      'parametres',
+      parametre.toMap(),
+      where: 'id = ?',
+      whereArgs: [parametre.id],
+    );
   }
 }

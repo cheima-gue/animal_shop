@@ -2,9 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../viewmodels/cart_viewmodel.dart';
-// ignore: unused_import
-import '../models/order_item.dart';
+import '../viewmodels/commande_viewmodel.dart';
+import '../models/produit.dart';
 
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
@@ -15,9 +14,10 @@ class CartPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Votre Panier'),
       ),
-      body: Consumer<CartViewModel>(
-        builder: (context, cartViewModel, child) {
-          if (cartViewModel.items.isEmpty) {
+      body: Consumer<CommandeViewModel>(
+        builder: (context, commandeViewModel, child) {
+          final items = commandeViewModel.cartItems.values.toList();
+          if (items.isEmpty) {
             return const Center(
               child: Text('Votre panier est vide.'),
             );
@@ -26,32 +26,37 @@ class CartPage extends StatelessWidget {
             children: [
               Expanded(
                 child: ListView.builder(
-                  itemCount: cartViewModel.items.length,
+                  itemCount: items.length,
                   itemBuilder: (context, index) {
-                    final item = cartViewModel.items[index];
-                    final quantityController =
-                        TextEditingController(text: item.quantity.toString());
+                    final produit = items[index];
+                    final quantityController = TextEditingController(
+                        text: produit.quantiteEnStock.toString());
 
-                    // Écoutez les changements dans le TextField pour mettre à jour le ViewModel
-                    quantityController.addListener(() {
-                      final newQuantity =
-                          int.tryParse(quantityController.text) ?? 0;
-                      if (newQuantity != item.quantity) {
-                        cartViewModel.updateItemQuantity(
-                            item.produit.id!, newQuantity);
-                      }
-                    });
+                    // Dispose the controller when the widget is removed
+                    // Note: In a ListView.builder, this can be complex. For this simple case,
+                    // we'll rely on Flutter's widget lifecycle to handle it.
 
                     return ListTile(
-                      title: Text(item.produit.nom),
-                      subtitle: Text('${item.price.toStringAsFixed(2)} DT'),
+                      title: Text(produit.nom),
+                      subtitle: Text(
+                        '${(produit.prix * produit.quantiteEnStock).toStringAsFixed(2)} DT',
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
                             icon: const Icon(Icons.remove),
-                            onPressed: () => cartViewModel
-                                .decreaseQuantity(item.produit.id!),
+                            onPressed: () {
+                              if (produit.quantiteEnStock > 1) {
+                                commandeViewModel.updateProductQuantity(
+                                  produit.id!,
+                                  produit.quantiteEnStock - 1,
+                                );
+                              } else {
+                                commandeViewModel
+                                    .removeProductFromCart(produit.id!);
+                              }
+                            },
                           ),
                           SizedBox(
                             width: 50,
@@ -63,17 +68,27 @@ class CartPage extends StatelessWidget {
                                 contentPadding: EdgeInsets.all(0),
                                 border: InputBorder.none,
                               ),
+                              onSubmitted: (value) {
+                                final newQuantity = int.tryParse(value) ?? 0;
+                                commandeViewModel.updateProductQuantity(
+                                  produit.id!,
+                                  newQuantity,
+                                );
+                              },
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.add),
-                            onPressed: () => cartViewModel
-                                .increaseQuantity(item.produit.id!),
+                            onPressed: () =>
+                                commandeViewModel.updateProductQuantity(
+                              produit.id!,
+                              produit.quantiteEnStock + 1,
+                            ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () =>
-                                cartViewModel.removeItem(item.produit.id!),
+                            onPressed: () => commandeViewModel
+                                .removeProductFromCart(produit.id!),
                           ),
                         ],
                       ),
@@ -93,9 +108,11 @@ class CartPage extends StatelessWidget {
                           TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      '${cartViewModel.totalPrice.toStringAsFixed(2)} DT',
+                      '${commandeViewModel.total.toStringAsFixed(2)} DT',
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -104,13 +121,15 @@ class CartPage extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: ElevatedButton(
-                  onPressed: () {
-                    cartViewModel.clearCart();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Commande finalisée avec succès !')),
-                    );
-                    Navigator.of(context).pop();
+                  onPressed: () async {
+                    await commandeViewModel.finalizeOrder();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Commande finalisée avec succès !')),
+                      );
+                      Navigator.of(context).pop();
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),

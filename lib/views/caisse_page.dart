@@ -1,4 +1,4 @@
-// lib/views/caisse_page.dart
+// lib/screens/caisse_page.dart
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,8 +7,10 @@ import 'package:provider/provider.dart';
 import '../models/produit.dart';
 import '../viewmodels/produit_viewmodel.dart';
 import '../viewmodels/client_viewmodel.dart';
+import '../viewmodels/parametre_viewmodel.dart';
+import '../viewmodels/commande_viewmodel.dart';
 import 'parametre_page.dart';
-import 'client_list_page.dart'; // NOUVEL IMPORT
+import 'client_list_page.dart';
 import '../services/pdf_service.dart';
 
 class CaissePage extends StatefulWidget {
@@ -29,14 +31,19 @@ class _CaissePageState extends State<CaissePage> {
   double _montantRecu = 0.0;
   double _monnaieARendre = 0.0;
   bool _isLoyalCustomer = false;
+  double _pointsInDinars = 0.0;
 
   @override
   void initState() {
     super.initState();
     _montantRecuController.addListener(_calculerMonnaie);
+    _loyaltyPointsController.addListener(_updateLoyaltyDiscount);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ClientViewModel>(context, listen: false).fetchClients();
-      Provider.of<ProduitViewModel>(context, listen: false).initialize(context);
+      Provider.of<ProduitViewModel>(context, listen: false).fetchProduits();
+      Provider.of<ParametreViewModel>(context, listen: false).fetchParametres();
+      _calculerMonnaie();
     });
   }
 
@@ -46,45 +53,66 @@ class _CaissePageState extends State<CaissePage> {
     _montantRecuController.removeListener(_calculerMonnaie);
     _montantRecuController.dispose();
     _clientSearchController.dispose();
+    _loyaltyPointsController.removeListener(_updateLoyaltyDiscount);
     _loyaltyPointsController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  void _updateLoyaltyDiscount() {
+    final commandeViewModel =
+        Provider.of<CommandeViewModel>(context, listen: false);
+    final pointsToUse = double.tryParse(_loyaltyPointsController.text) ?? 0.0;
+    commandeViewModel.applyLoyaltyPoints(pointsToUse);
+    _calculerMonnaie();
+  }
+
+  void _calculatePointsInDinars(double points) {
+    final parametre =
+        Provider.of<ParametreViewModel>(context, listen: false).parametre;
+    if (parametre != null) {
+      final double valeurDinar = parametre.valeurDinar;
+      final double pointsParDinar = parametre.pointsParDinar;
+      if (pointsParDinar > 0) {
+        setState(() {
+          _pointsInDinars = (points / pointsParDinar) * valeurDinar;
+        });
+      } else {
+        setState(() {
+          _pointsInDinars = 0.0;
+        });
+      }
+    }
+  }
+
   void _processBarcode(String barcode) async {
     if (barcode.isNotEmpty) {
-      bool success = await Provider.of<ProduitViewModel>(context, listen: false)
-          .addProductByBarcode(barcode);
+      final produitViewModel =
+          Provider.of<ProduitViewModel>(context, listen: false);
+      final commandeViewModel =
+          Provider.of<CommandeViewModel>(context, listen: false);
+
+      final produit = await produitViewModel.getProduitByCodeBarre(barcode);
+
       _barcodeController.clear();
       FocusScope.of(context).requestFocus();
 
-      if (!success) {
-        final produitViewModel =
-            Provider.of<ProduitViewModel>(context, listen: false);
-        final produit = produitViewModel.produits.firstWhere(
-          (p) => p.codeBarre == barcode,
-          orElse: () => Produit(
-              nom: '',
-              codeBarre: '',
-              prix: 0,
-              subCategoryId: 0,
-              quantiteEnStock: 0),
-        );
-
-        String message;
-        if (produit.nom.isNotEmpty) {
-          if (produit.quantiteEnStock <= 0) {
-            message = 'Le produit "${produit.nom}" est en rupture de stock.';
-          } else {
-            message = 'Stock insuffisant pour le produit "${produit.nom}".';
-          }
+      if (produit != null) {
+        if (produit.quantiteEnStock > 0) {
+          commandeViewModel.addProductByBarcode(produit);
         } else {
-          message = 'Produit avec le code-barres "$barcode" non trouvé.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text('Le produit "${produit.nom}" est en rupture de stock.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
-
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
+            content: Text('Produit avec le code-barres "$barcode" non trouvé.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -93,8 +121,7 @@ class _CaissePageState extends State<CaissePage> {
   }
 
   void _calculerMonnaie() {
-    final total =
-        Provider.of<ProduitViewModel>(context, listen: false).totalPrice;
+    final total = Provider.of<CommandeViewModel>(context, listen: false).total;
     final montantSaisi = double.tryParse(_montantRecuController.text) ?? 0.0;
 
     setState(() {
@@ -109,10 +136,14 @@ class _CaissePageState extends State<CaissePage> {
   Future<void> _showQuantityDialog(Produit produit) async {
     final TextEditingController quantiteController =
         TextEditingController(text: produit.quantiteEnStock.toString());
-    final int maxStock = Provider.of<ProduitViewModel>(context, listen: false)
-        .produits
-        .firstWhere((p) => p.id == produit.id)
-        .quantiteEnStock;
+
+    final produitEnStock =
+        await Provider.of<ProduitViewModel>(context, listen: false)
+            .getProduitByCodeBarre(produit.codeBarre);
+    final int maxStock = produitEnStock?.quantiteEnStock ?? 0;
+
+    final commandeViewModel =
+        Provider.of<CommandeViewModel>(context, listen: false);
 
     await showDialog(
       context: context,
@@ -156,12 +187,11 @@ class _CaissePageState extends State<CaissePage> {
                     ),
                   );
                 } else if (nouvelleQuantite > 0) {
-                  Provider.of<ProduitViewModel>(context, listen: false)
-                      .updateProductQuantity(produit.id!, nouvelleQuantite);
+                  commandeViewModel.updateProductQuantity(
+                      produit.id!, nouvelleQuantite);
                   Navigator.of(context).pop();
                 } else {
-                  Provider.of<ProduitViewModel>(context, listen: false)
-                      .removeProductFromCart(produit.id!);
+                  commandeViewModel.removeProductFromCart(produit.id!);
                   Navigator.of(context).pop();
                 }
               },
@@ -193,9 +223,7 @@ class _CaissePageState extends State<CaissePage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: InkWell(
-                onTap: () {
-                  produitViewModel.addProductByBarcode(produit.codeBarre);
-                },
+                onTap: () => _processBarcode(produit.codeBarre),
                 child: Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
@@ -241,8 +269,10 @@ class _CaissePageState extends State<CaissePage> {
     );
   }
 
-  Widget _buildTicketDeCaisse(ProduitViewModel produitViewModel) {
-    final cartItems = produitViewModel.cartItems.values.toList();
+  Widget _buildTicketDeCaisse(CommandeViewModel commandeViewModel) {
+    final cartItems = commandeViewModel.cartItems.values.toList();
+    final parametre = Provider.of<ParametreViewModel>(context).parametre;
+
     return Column(
       children: [
         Expanded(
@@ -272,7 +302,7 @@ class _CaissePageState extends State<CaissePage> {
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () {
                       if (produit.id != null) {
-                        produitViewModel.removeProductFromCart(produit.id!);
+                        commandeViewModel.removeProductFromCart(produit.id!);
                       }
                     },
                   ),
@@ -290,11 +320,12 @@ class _CaissePageState extends State<CaissePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Sous-total:', style: TextStyle(fontSize: 18)),
-                  Text('${produitViewModel.subtotal.toStringAsFixed(2)} DT',
+                  Text('${commandeViewModel.subtotal.toStringAsFixed(2)} DT',
                       style: const TextStyle(fontSize: 18)),
                 ],
               ),
-              if (produitViewModel.selectedClient != null) ...[
+              if (commandeViewModel.selectedClient != null &&
+                  parametre != null) ...[
                 const SizedBox(height: 8.0),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -302,63 +333,77 @@ class _CaissePageState extends State<CaissePage> {
                     const Text('Points de fidélité à gagner:',
                         style: TextStyle(fontSize: 18)),
                     Text(
-                        '+${produitViewModel.loyaltyPointsEarned.toStringAsFixed(2)} pts',
+                        '+${commandeViewModel.loyaltyPointsEarned.toStringAsFixed(2)} pts',
                         style:
                             const TextStyle(fontSize: 18, color: Colors.blue)),
                   ],
                 ),
-                if (produitViewModel.selectedClient != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _loyaltyPointsController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'Points à utiliser',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onChanged: (_) {
-                                final pointsToUse = double.tryParse(
-                                        _loyaltyPointsController.text) ??
-                                    0.0;
-                                produitViewModel
-                                    .applyCustomLoyaltyPoints(pointsToUse);
-                                _calculerMonnaie();
-                              },
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Points de fidélité du client:',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        Text(
+                          '${commandeViewModel.selectedClient!.loyaltyPoints.toStringAsFixed(2)} pts',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (_pointsInDinars > 0)
+                      Text(
+                        '(${_pointsInDinars.toStringAsFixed(2)} DT)',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _loyaltyPointsController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Points à utiliser',
+                              border: OutlineInputBorder(),
+                              isDense: true,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
-                            onPressed: () {
-                              final pointsToUse = double.tryParse(
-                                      _loyaltyPointsController.text) ??
-                                  0.0;
-                              produitViewModel
-                                  .applyCustomLoyaltyPoints(pointsToUse);
-                              _calculerMonnaie();
-                            },
-                            child: const Text('Appliquer'),
-                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            final pointsToUse = double.tryParse(
+                                    _loyaltyPointsController.text) ??
+                                0.0;
+                            commandeViewModel.applyLoyaltyPoints(pointsToUse);
+                            _calculerMonnaie();
+                          },
+                          child: const Text('Appliquer'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (commandeViewModel.loyaltyDiscount > 0)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Réduction (points):'),
+                          Text(
+                              '-${commandeViewModel.loyaltyDiscount.toStringAsFixed(2)} DT'),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      if (produitViewModel.loyaltyDiscount > 0)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Réduction (points):'),
-                            Text(
-                                '-${produitViewModel.loyaltyDiscount.toStringAsFixed(2)} DT'),
-                          ],
-                        ),
-                    ],
-                  ),
+                  ],
+                ),
               ],
               const SizedBox(height: 16.0),
               Row(
@@ -367,7 +412,7 @@ class _CaissePageState extends State<CaissePage> {
                   const Text('Total:',
                       style:
                           TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  Text('${produitViewModel.totalPrice.toStringAsFixed(2)} DT',
+                  Text('${commandeViewModel.total.toStringAsFixed(2)} DT',
                       style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -402,10 +447,10 @@ class _CaissePageState extends State<CaissePage> {
         ),
         const SizedBox(height: 16.0),
         ElevatedButton(
-          onPressed: () {
-            final produitViewModel =
-                Provider.of<ProduitViewModel>(context, listen: false);
-            final total = produitViewModel.totalPrice;
+          onPressed: () async {
+            final commandeViewModel =
+                Provider.of<CommandeViewModel>(context, listen: false);
+            final total = commandeViewModel.total;
 
             if (total == 0) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -415,12 +460,20 @@ class _CaissePageState extends State<CaissePage> {
                 ),
               );
             } else if (_montantRecu >= total) {
-              produitViewModel.finalizeOrder();
+              final double pointsEarned = commandeViewModel.loyaltyPointsEarned;
+              final double pointsUsed = commandeViewModel.loyaltyPointsUsed;
+              final double clientInitialPoints =
+                  commandeViewModel.selectedClient?.loyaltyPoints ?? 0;
+              final double newLoyaltyPoints =
+                  clientInitialPoints + pointsEarned - pointsUsed;
 
-              PdfService().generateAndPrintTicketPdf(
-                produitViewModel,
+              await commandeViewModel.finalizeOrder();
+
+              await PdfService().generateAndPrintTicketPdf(
+                commandeViewModel,
                 _montantRecu,
                 _monnaieARendre,
+                newLoyaltyPoints,
               );
 
               _montantRecuController.clear();
@@ -458,7 +511,7 @@ class _CaissePageState extends State<CaissePage> {
   }
 
   Widget _buildClientPanel(
-      ClientViewModel clientViewModel, ProduitViewModel produitViewModel) {
+      ClientViewModel clientViewModel, CommandeViewModel commandeViewModel) {
     return Column(
       children: [
         Padding(
@@ -475,8 +528,8 @@ class _CaissePageState extends State<CaissePage> {
             },
           ),
         ),
-        if (produitViewModel.selectedClient != null)
-          _buildSelectedClientDetails(produitViewModel),
+        if (commandeViewModel.selectedClient != null)
+          _buildSelectedClientDetails(commandeViewModel),
         const Divider(),
         Expanded(
           child: ListView.builder(
@@ -486,12 +539,15 @@ class _CaissePageState extends State<CaissePage> {
               return ListTile(
                 title: Text('${client.firstName} ${client.lastName}'),
                 subtitle: Text('Tél: ${client.tel}'),
-                trailing:
-                    Text('${client.loyaltyPoints.toStringAsFixed(2)} pts'),
+                trailing: Text(
+                    '${client.loyaltyPoints.toStringAsFixed(2) ?? '0.00'} pts'),
                 onTap: () {
-                  produitViewModel.selectClient(client);
+                  commandeViewModel.selectClient(client);
+                  _calculatePointsInDinars(client.loyaltyPoints);
+                  _loyaltyPointsController.text =
+                      client.loyaltyPoints.toStringAsFixed(2);
                 },
-                selected: produitViewModel.selectedClient?.id == client.id,
+                selected: commandeViewModel.selectedClient?.id == client.id,
                 selectedTileColor: Colors.teal.withOpacity(0.1),
               );
             },
@@ -501,8 +557,8 @@ class _CaissePageState extends State<CaissePage> {
     );
   }
 
-  Widget _buildSelectedClientDetails(ProduitViewModel produitViewModel) {
-    final client = produitViewModel.selectedClient!;
+  Widget _buildSelectedClientDetails(CommandeViewModel commandeViewModel) {
+    final client = commandeViewModel.selectedClient!;
     return Container(
       padding: const EdgeInsets.all(16.0),
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -537,7 +593,6 @@ class _CaissePageState extends State<CaissePage> {
         title: const Text('Caisse Enregistreuse'),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
-          // NOUVELLE ACTION : Bouton pour la liste des clients
           IconButton(
             icon: const Icon(Icons.people),
             onPressed: () {
@@ -585,8 +640,8 @@ class _CaissePageState extends State<CaissePage> {
           const VerticalDivider(width: 1),
           Expanded(
             flex: 1,
-            child: Consumer2<ProduitViewModel, ClientViewModel>(
-              builder: (context, produitViewModel, clientViewModel, child) {
+            child: Consumer2<CommandeViewModel, ClientViewModel>(
+              builder: (context, commandeViewModel, clientViewModel, child) {
                 return Column(
                   children: [
                     Row(
@@ -601,7 +656,7 @@ class _CaissePageState extends State<CaissePage> {
                                 setState(() {
                                   _isLoyalCustomer = false;
                                   _clientSearchController.clear();
-                                  produitViewModel.resetClient();
+                                  commandeViewModel.resetClient();
                                 });
                               }
                             },
@@ -627,7 +682,7 @@ class _CaissePageState extends State<CaissePage> {
                     if (_isLoyalCustomer)
                       Expanded(
                         child: _buildClientPanel(
-                            clientViewModel, produitViewModel),
+                            clientViewModel, commandeViewModel),
                       )
                     else
                       const Expanded(
@@ -651,11 +706,11 @@ class _CaissePageState extends State<CaissePage> {
           const VerticalDivider(width: 1),
           Expanded(
             flex: 1,
-            child: Consumer<ProduitViewModel>(
-              builder: (context, produitViewModel, child) {
+            child: Consumer<CommandeViewModel>(
+              builder: (context, commandeViewModel, child) {
                 return Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: _buildTicketDeCaisse(produitViewModel),
+                  child: _buildTicketDeCaisse(commandeViewModel),
                 );
               },
             ),

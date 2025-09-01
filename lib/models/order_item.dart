@@ -1,39 +1,41 @@
 // lib/models/order_item.dart
 
-import 'produit.dart';
-
 class OrderItem {
   int? id;
   int? commandeId;
-  Produit produit;
-  int quantity;
-  double price;
+  final int productId;
+  final int quantity;
+  final double price;
+  final double subtotal;
 
   OrderItem({
     this.id,
     this.commandeId,
-    required this.produit,
+    required this.productId,
     required this.quantity,
     required this.price,
+    required this.subtotal,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'commandeId': commandeId,
-      'produitId': produit.id,
+      'productId': productId,
       'quantity': quantity,
       'price': price,
+      'subtotal': subtotal,
     };
   }
 
-  factory OrderItem.fromMap(Map<String, dynamic> map, Produit produit) {
+  factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(
       id: map['id'],
       commandeId: map['commandeId'],
-      produit: produit,
+      productId: map['productId'],
       quantity: map['quantity'],
       price: map['price'],
+      subtotal: map['subtotal'],
     );
   }
 }

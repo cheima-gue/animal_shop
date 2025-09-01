@@ -11,11 +11,20 @@ class CategoryViewModel extends ChangeNotifier {
   List<Category> _categories = [];
   List<SubCategory> _subCategories = [];
 
+  // New property for loading state
+  bool _isLoading = false;
+
   List<Category> get categories => _categories;
   List<SubCategory> get subCategories => _subCategories;
 
+  // Getter for the loading state
+  bool get isLoading => _isLoading;
+
   Future<void> fetchCategories() async {
+    _isLoading = true;
+    notifyListeners();
     _categories = await _dbHelper.getCategories();
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -36,7 +45,10 @@ class CategoryViewModel extends ChangeNotifier {
   }
 
   Future<void> fetchSubCategories() async {
+    _isLoading = true;
+    notifyListeners();
     _subCategories = await _dbHelper.getSubCategories();
+    _isLoading = false;
     notifyListeners();
   }
 

@@ -1,32 +1,32 @@
 // lib/viewmodels/parametre_viewmodel.dart
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../models/parametre.dart';
+import '../services/database_helper.dart';
 
 class ParametreViewModel extends ChangeNotifier {
-  static const String _pointsPerDinarKey = 'points_per_dinar';
-  double _pointsPerDinar = 50.0; // Valeur par défaut : 50 points par dinar
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  Parametre? _parametre;
 
-  double get pointsPerDinar => _pointsPerDinar;
+  Parametre? get parametre => _parametre;
 
-  ParametreViewModel() {
-    _loadLoyaltySettings();
-  }
-
-  Future<void> _loadLoyaltySettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _pointsPerDinar = prefs.getDouble(_pointsPerDinarKey) ?? 50.0;
+  Future<void> fetchParametres() async {
+    _parametre = await _dbHelper.getParametres();
+    if (_parametre == null) {
+      _parametre = Parametre(
+        id: 1,
+        pointsParDinar: 1.0,
+        valeurDinar: 0.1,
+        margeBeneficiaire: 0.2,
+      );
+      await _dbHelper.insertParametres(_parametre!);
+    }
     notifyListeners();
   }
 
-  /// Met à jour les paramètres de fidélité en calculant le taux de points par dinar.
-  Future<void> updateLoyaltySettings(double points, double montant) async {
-    if (montant > 0) {
-      final double newRate = points / montant;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble(_pointsPerDinarKey, newRate);
-      _pointsPerDinar = newRate;
-      notifyListeners();
-    }
+  Future<void> updateParametres(Parametre newParametre) async {
+    await _dbHelper.updateParametres(newParametre);
+    _parametre = newParametre;
+    notifyListeners();
   }
 }
